@@ -1,18 +1,6 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
+#include <crush.h>
 
-#include <ft2build.h>
-#include <freetype/freetype.h>
-
-#define CODE_INVALID_ARG                1
-
-#define UNIT_PIXEL                      0
-#define UNIT_POINT                      1
-#define DPI_H_DEFAULT                   300
-#define DPI_V_DEFAULT                   300
+#define DPI_NUM_DIGITS                        8
 
 static uint8_t font_size = 0;
 static uint8_t font_size_unit = UNIT_PIXEL;
@@ -25,14 +13,17 @@ static uint16_t dpi_v = DPI_V_DEFAULT;
 void print_usage();
 void set_option_font_size(char *value);
 void set_option_out_filename(char *value);
-void set_option_dpi(uint16_t val_dpi_h, uint16_t val_dpi_v);
+uint8_t set_option_dpi(char *value);
 int main(int argc, char *argv[])
 {
         if(argc < 2) {
                 print_usage();
                 return 1;
         }
-        for(uint8_t i = 0; i < argc; i++) {
+        // argv[0] is the command name (i.e. font_crusher)
+        // argv[1] is the subcommand name, currently there is only one SC
+        // so we start parsing options and args from argv[2]
+        for(uint8_t i = 2; i < argc; i++) {
                 if(argv[i][0] == '-') {
                         switch (argv[i++][1]) {
                         case 's':
@@ -70,12 +61,25 @@ void set_option_out_filename(char *value)
 {
         out_filename = value;
 }
-void set_option_dpi(uint16_t val_dpi_h, uint16_t val_dpi_v)
+uint8_t set_option_dpi(char *value)
 {
-        dpi_h = val_dpi_h;
-        dpi_v = val_dpi_v;
+        uint8_t x = 0;
+        while(value[x] != 'x' && value[x] != 'X') {
+                if(value[x] == 0) return CODE_INVALID_ARG;
+                if(x > DPI_MAX_DIGITS) return CODE_INVALID_ARG;
+                x++;
+
+        }
+        uint8_t length = (uint8_t) strlen(value);
+        char val_dpi_h[DPI_MAX_DIGITS];
+        char val_dpi_v[DPI_MAX_DIGITS];
+        memcpy(val_dpi_h, value, length - x);
+        memcpy(val_dpi_v, &value[x + 1], length - (length - x));
+        dpi_h = strtol(val_dpi_h, NULL, 10);
+        dpi_v = strtol(val_dpi_v, NULL, 10);
+        return CODE_OK;
 }
 void print_usage()
 {
-    printf("Usage: font_crusher [-s <size>] [-o <name>] <font_filename> <output_directory>");
+    printf("Usage: font_crusher export [-s <size>] [-o <name>] <font_filename> <output_directory>\n");
 }
