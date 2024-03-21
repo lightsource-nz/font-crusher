@@ -2,24 +2,28 @@ cmake_minimum_required(VERSION 3.12)
 
 add_subdirectory(lib/freetype)
 
-project(font_crusher C)
+project(font-crusher C)
 
-add_executable(font_crusher)
+add_executable(crush)
 
 target_include_directories(
-        font_crusher
+        crush
         PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
 target_sources(
-        font_crusher
+        crush
         PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/main.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/export.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/context.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/display.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/font.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/module.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/render.c
 )
 target_link_libraries(
-        font_crusher
+        crush
         PUBLIC
         freetype
 )
