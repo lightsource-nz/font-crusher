@@ -11,6 +11,7 @@
 
 #define CODE_OK                         0
 #define CODE_INVALID_ARG                1
+#define CODE_NO_RESOURCE                2
 
 #define UNIT_PIXEL                      0
 #define UNIT_POINT                      1
@@ -39,17 +40,33 @@
 #define TYPE_COMMAND                    0
 #define TYPE_CONTAINER                  1
 
-uint8_t command_context();
-uint8_t command_display();
-uint8_t command_font();
-uint8_t command_module();
-uint8_t command_render();
+struct crush_command {
+        uint8_t type;
+        const char *name;
+        struct crush_container *parent;
+        uint8_t (*do_cmd)(int argc, char **argv);
+};
+struct crush_container {
+        uint8_t type;
+        const char *name;
+        struct crush_container *parent;
+        uint8_t (*do_cmd)(int argc, char **argv);
+        uint8_t child_count;
+        struct crush_command *child[CRUSH_SUBCOMMAND_MAX];
+};
+static inline struct crush_container *to_container(struct crush_command *cmd)
+{
+    return cmd->type == TYPE_CONTAINER ? (struct crush_container *) cmd : NULL;
+}
 
-uint8_t crush_command_container_define(uint8_t parent, const char *name);
-uint8_t crush_command_define(uint8_t parent, const char *name, uint8_t (*do_cmd)(int argc, char **argv));
-uint8_t crush_num_commands_defined();
-const char *crush_command_get_name(uint8_t command_id);
-uint8_t crush_command_find(uint8_t parent, const char *name);
-uint8_t crush_command_exec(uint8_t command_id, int argc, char **argv);
+extern struct crush_container *crush_command_container_define(struct crush_container *parent, const char *name, uint8_t (*do_cmd)(int argc, char **argv));
+extern uint8_t crush_command_container_add(struct crush_container *parent, struct crush_command *child);
+extern struct crush_command *crush_command_define(struct crush_container *parent, const char *name, uint8_t (*do_cmd)(int argc, char **argv));
+extern uint8_t crush_num_commands_defined();
+extern const char *crush_command_get_name(struct crush_command *command);
+extern const char *crush_command_get_path(struct crush_command *command);
+extern struct crush_command *crush_command_find(struct crush_container *parent, const char *name);
+extern uint8_t crush_command_exec(struct crush_command *command_id, int argc, char **argv);
 
+extern struct crush_container *crush_command_root();
 #endif

@@ -6,15 +6,21 @@
 #define COMMAND_RENDER_INFO                     "info"
 
 static void print_usage();
+static uint8_t do_cmd_render(int argc, char **argv);
 static uint8_t do_cmd_render_new(int argc, char **argv);
 static uint8_t do_cmd_render_info(int argc, char **argv);
 uint8_t crush_cmd_render_init()
 {
-        uint8_t id_render = crush_command_container_define(
-                                CRUSH_COMMAND_PARENT_NONE, COMMAND_RENDER);
-        crush_command_define(id_render, COMMAND_RENDER_NEW, do_cmd_render_new);
-        crush_command_define(id_render, COMMAND_RENDER_INFO, do_cmd_render_info);
+        struct crush_container *cmd_render = crush_command_container_define(
+                                crush_command_root(), COMMAND_RENDER, do_cmd_render);
+        crush_command_define(cmd_render, COMMAND_RENDER_NEW, do_cmd_render_new);
+        crush_command_define(cmd_render, COMMAND_RENDER_INFO, do_cmd_render_info);
 
+        return CODE_OK;
+}
+static uint8_t do_cmd_render(int argc, char **argv)
+{
+        print_usage();
         return CODE_OK;
 }
 static uint8_t do_cmd_render_new(int argc, char **argv)

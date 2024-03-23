@@ -6,15 +6,21 @@
 #define COMMAND_MODULE_INFO                     "info"
 
 static void print_usage();
+static uint8_t do_cmd_module(int argc, char **argv);
 static uint8_t do_cmd_module_import(int argc, char **argv);
 static uint8_t do_cmd_module_info(int argc, char **argv);
 uint8_t crush_cmd_module_init()
 {
-        uint8_t id_module = crush_command_container_define(
-                                CRUSH_COMMAND_PARENT_NONE, COMMAND_MODULE);
-        crush_command_define(id_module, COMMAND_MODULE_LIST, do_cmd_module_import);
-        crush_command_define(id_module, COMMAND_MODULE_INFO, do_cmd_module_info);
+        struct crush_container *cmd_module = crush_command_container_define(
+                                crush_command_root(), COMMAND_MODULE, do_cmd_module);
+        crush_command_define(cmd_module, COMMAND_MODULE_LIST, do_cmd_module_import);
+        crush_command_define(cmd_module, COMMAND_MODULE_INFO, do_cmd_module_info);
 
+        return CODE_OK;
+}
+static uint8_t do_cmd_module(int argc, char **argv)
+{
+        print_usage();
         return CODE_OK;
 }
 static uint8_t do_cmd_module_import(int argc, char **argv)

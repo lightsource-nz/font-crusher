@@ -11,19 +11,10 @@ static char *out_dirname = NULL;
 static uint16_t dpi_h = DPI_H_DEFAULT;
 static uint16_t dpi_v = DPI_V_DEFAULT;
 
-struct crush_command {
-        uint8_t type;
-        uint8_t (*do_cmd)(int argc, char **argv);
-};
-struct crush_container {
-        uint8_t type;
-        void *child[CRUSH_SUBCOMMAND_MAX];
-};
-static struct {
-        const char *name;
-        void *command;
-} command_table[CRUSH_COMMAND_MAX];
+static struct crush_command *command_table[CRUSH_COMMAND_MAX];
 static uint8_t next_command_id;
+
+static struct crush_container *cmd_root;
 
 static void crush_init();
 static void print_usage();
@@ -65,12 +56,17 @@ int main(int argc, char *argv[])
 
         return 0;
 }
+static uint8_t do_cmd_crush(int argc, char **argv){
+        print_usage();
+        return CODE_OK;
+}
 // perform all init activities that take place before the parsing of
 // command line arguments, such as loading built-in commands, and
 // installed plugin modules
 static void crush_init()
 {
         next_command_id = 0;
+        cmd_root = crush_command_container_define(NULL, "crush", do_cmd_crush);
         crush_cmd_context_init();
         crush_cmd_display_init();
         crush_cmd_font_init();
@@ -83,24 +79,69 @@ static uint8_t parse_command_name(const char *name)
 
         }
 }
-uint8_t crush_command_container_define(uint8_t parent, const char *name)
+struct crush_container *crush_command_container_define(struct crush_container *parent, const char *name, uint8_t (*do_cmd)(int argc, char **argv))
 {
         uint8_t id = next_command_id++;
         struct crush_container *cmd = malloc(sizeof(struct crush_container));
         cmd->type = TYPE_CONTAINER;
-        command_table[id].name = name;
-        command_table[id].command = cmd;
-        return CODE_OK;
+        cmd->name = name;
+        cmd->do_cmd = do_cmd;
+        command_table[id] = (struct crush_command *) cmd;
+        cmd->child_count = 0;
+        if(id != CRUSH_COMMAND_PARENT_NONE) {
+                crush_command_container_add(parent, (struct crush_command *) cmd);
+        }
+        return cmd;
 }
-uint8_t crush_command_define(uint8_t parent, const char *name, uint8_t (*do_cmd)(int argc, char **argv))
+struct crush_command *crush_command_define(struct crush_container *parent, const char *name, uint8_t (*do_cmd)(int argc, char **argv))
 {
         uint8_t id = next_command_id++;
         struct crush_command *cmd = malloc(sizeof(struct crush_command));
         cmd->type = TYPE_COMMAND;
+        cmd->name = name;
         cmd->do_cmd = do_cmd;
-        command_table[id].name = name;
-        command_table[id].command = cmd;
+        command_table[id] = cmd;
+        if(id != CRUSH_COMMAND_PARENT_NONE) {
+                crush_command_container_add(parent, cmd);
+        }
+        return cmd;
+}
+uint8_t crush_command_container_add(struct crush_container *parent, struct crush_command *child)
+{
+        if(parent->child_count >= CRUSH_SUBCOMMAND_MAX) {
+                printf("warning: " __FUNCTION__ ": command '%s' max subcommands reached", crush_command_get_path((struct crush_command *)parent));
+                return CODE_NO_RESOURCE;
+        }
+        parent->child[parent->child_count++] = child;
         return CODE_OK;
+}
+uint8_t crush_num_commands_defined()
+{
+        return next_command_id;
+}
+const char *crush_command_get_name(struct crush_command *command)
+{
+        return command->name;
+}
+// FIXME this scales horribly and generally wastes memory
+const char *crush_command_get_path(struct crush_command *command)
+{
+        if(command->parent) {
+                return strcat(crush_command_get_path((struct crush_command *)command->parent), command->name);
+        }
+        return command->name;
+}
+struct crush_command *crush_command_find(struct crush_container *parent, const char *name)
+{
+        for(uint8_t i = 0; i < parent->child_count; i++) {
+                if(strcmp(name, parent->child[i]->name))
+                        return parent->child[i];
+        }
+        return NULL;
+}
+uint8_t crush_command_exec(struct crush_command *command, int argc, char **argv)
+{
+        return command->do_cmd(argc, argv);
 }
 void set_option_font_size(char *value)
 {
@@ -115,6 +156,10 @@ void set_option_font_size(char *value)
                         exit(CODE_INVALID_ARG);
                 }
         }
+}
+struct crush_container *crush_command_root()
+{
+        return cmd_root;
 }
 void set_option_out_filename(char *value)
 {
