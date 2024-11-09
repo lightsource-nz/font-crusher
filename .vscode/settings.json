@@ -1,0 +1,15 @@
+{
+    "cmake.configureSettings": {
+        
+        "PICO_SDK_PATH": "../../pico-sdk",
+        "LIGHT_PATH": "../light_framework_mk3"
+    },
+    "cmake.configureEnvironment": {
+        "LIGHT_PATH": "../light_framework_mk3"
+    },
+    "files.associations": {
+        "crush.h": "c",
+        "light.h": "c",
+        "light_core_port.h": "c"
+    }
+}

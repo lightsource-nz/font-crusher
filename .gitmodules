@@ -1,3 +1,6 @@
-[submodule "lib/freetype"]
-	path = lib/freetype
-	url = https://gitlab.freedesktop.org/freetype/freetype.git
+[submodule "module/mod_freetype/lib/freetype"]
+	path = module/mod_freetype/lib/freetype
+	url = git@github.com:freetype/freetype.git
+[submodule "cmake/light_presets"]
+	path = cmake/light_presets
+	url = https://github.com/lightsource-nz/light_presets.git

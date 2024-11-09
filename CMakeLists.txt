@@ -1,29 +1,11 @@
 cmake_minimum_required(VERSION 3.12)
 
-add_subdirectory(lib/freetype)
+get_filename_component(LIGHT_PATH "${LIGHT_PATH}" REALPATH BASE_DIR "${CMAKE_CURRENT_LIST_DIR}")
+include(${LIGHT_PATH}/external/light_preinit.cmake)
 
 project(font-crusher C)
 
-add_executable(crush)
+add_subdirectory(${LIGHT_PATH}/ light_framework)
 
-target_include_directories(
-        crush
-        PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/include
-)
-
-target_sources(
-        crush
-        PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/src/main.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/context.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/display.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/font.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/module.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/render.c
-)
-target_link_libraries(
-        crush
-        PUBLIC
-        freetype
-)
+add_subdirectory(module/mod_freetype)
+add_subdirectory(module/crush)

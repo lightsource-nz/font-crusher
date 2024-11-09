@@ -1,0 +1,40 @@
+{
+    "version": 9,
+    "include": ["cmake/light_presets/light_presets.json"],
+    "configurePresets": [
+        {
+            "name": "conf-crush-base",
+            "hidden": true,
+            "inherits": ["conf-light-host-base"],
+            "binaryDir": "${sourceDir}/build",
+            "generator": "Ninja",
+            "cacheVariables": {
+            }
+        },
+        {
+            "name": "conf-crush-debug",
+            "inherits": [
+                "conf-crush-base",
+                "conf-light-debug"
+            ]
+        },{
+            "name": "conf-crush-release",
+            "inherits": [
+                "conf-crush-base",
+                "conf-light-release"
+            ]
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "build-crush-debug",
+            "configurePreset": "conf-crush-debug",
+            "targets": ["crush"]
+        },
+        {
+            "name": "build-crush-release",
+            "configurePreset": "conf-crush-release",
+            "targets":["crush"]
+        }
+    ]
+}
