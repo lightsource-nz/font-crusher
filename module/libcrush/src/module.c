@@ -32,7 +32,5 @@ Light_Module_Define(libcrush, _module_event,
                                                 &libcrush_font,
                                                 &libcrush_module,
                                                 &libcrush_render,
-                                                &mod_freetype,
                                                 &light_cli,
                                                 &light_core);
-// FIXME need to set real module references once the target modules exist

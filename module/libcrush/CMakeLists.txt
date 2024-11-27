@@ -20,4 +20,6 @@ target_link_libraries(
         libcrush_font
         libcrush_module
         libcrush_render
+        light_core
+        light_cli
 )
