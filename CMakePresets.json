@@ -17,7 +17,15 @@
                 "conf-crush-base",
                 "conf-light-debug"
             ]
-        },{
+        },
+        {
+            "name": "conf-crush-trace",
+            "inherits": [
+                "conf-crush-base",
+                "conf-light-trace"
+            ]
+        },
+        {
             "name": "conf-crush-release",
             "inherits": [
                 "conf-crush-base",
@@ -29,6 +37,11 @@
         {
             "name": "build-crush-debug",
             "configurePreset": "conf-crush-debug",
+            "targets": ["crush"]
+        },
+        {
+            "name": "build-crush-trace",
+            "configurePreset": "conf-crush-trace",
             "targets": ["crush"]
         },
         {

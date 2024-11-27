@@ -1,21 +1,20 @@
 
-add_executable(crush)
+add_library(libcrush_font INTERFACE)
 
 target_include_directories(
-        crush PUBLIC
+        libcrush_font INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
 target_sources(
-        crush PUBLIC
+        libcrush_font INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/src/font.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/main.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/module.c
 )
 
 target_link_libraries(
-        crush
-        PUBLIC
-        libcrush
+        libcrush_font
+        INTERFACE
         light_core
         light_cli
 )

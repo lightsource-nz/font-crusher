@@ -1,5 +1,10 @@
 #include <crush.h>
+#include <module/mod_light_cli.h>
+#include <module/mod_libcrush.h>
 #include "crush_private.h"
+
+#define CRUSH_ROOT_COMMAND_NAME                 "crush"
+#define CRUSH_ROOT_COMMAND_DESCRIPTION          "default root command for the Font Crusher application"
 
 #define CRUSH_VERSION_MAJOR                     1
 
@@ -13,16 +18,15 @@ static char *out_dirname = NULL;
 static uint16_t dpi_h = DPI_H_DEFAULT;
 static uint16_t dpi_v = DPI_V_DEFAULT;
 
-static struct crush_command *command_table[CRUSH_COMMAND_MAX];
-static uint8_t next_command_id;
-
-static struct crush_container *cmd_root;
+static struct light_command *cmd_root;
 
 static void crush_app_event(const struct light_module *mod, uint8_t event, void *arg);
 static uint8_t crush_app_main(struct light_application *app);
 
 Light_Application_Define(
         crush, crush_app_event, crush_app_main,
+        &libcrush,
+        &light_cli,
         &light_core
 );
 
@@ -44,7 +48,7 @@ static void crush_app_event(const struct light_module *mod, uint8_t event_id, vo
         {
         case LF_EVENT_APP_LOAD:
                 struct light_event_app_load *event = (struct light_event_app_load *)arg;
-                crush_process_command_line(event->argc, event->argv);
+                
                 break;
         
         default:
@@ -54,22 +58,21 @@ static void crush_app_event(const struct light_module *mod, uint8_t event_id, vo
 }
 static uint8_t crush_app_main(struct light_application *app)
 {
-        light_info("crush v%d loading...", CRUSH_VERSION_MAJOR);
-        crush_init();
+        light_debug("enter main task","");
+
         // default application lifecycle for command executables is run once then shutdown
         return LF_STATUS_SHUTDOWN;
 }
-static uint8_t do_cmd_crush(int argc, char **argv){
+static void do_cmd_crush(struct light_command *command){
         print_usage_context();
-        return CODE_OK;
 }
 // perform all init activities that take place before the parsing of
 // command line arguments, such as loading built-in commands, and
 // installed plugin modules
 static void crush_init()
 {
-        next_command_id = 0;
-        cmd_root = crush_command_container_define(NULL, "crush", do_cmd_crush);
+        cmd_root = light_cli_register_command(
+                CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush);
         crush_cmd_context_init(cmd_root);
         crush_cmd_display_init(cmd_root);
         crush_cmd_font_init(cmd_root);
@@ -114,70 +117,6 @@ static uint8_t parse_command_name(const char *name)
         if(strcmp(name, STR_COMMAND_CONTEXT)) {
 
         }
-}
-struct crush_container *crush_command_container_define(struct crush_container *parent, const char *name, uint8_t (*do_cmd)(int argc, char **argv))
-{
-        uint8_t id = next_command_id++;
-        struct crush_container *cmd = malloc(sizeof(struct crush_container));
-        cmd->type = TYPE_CONTAINER;
-        cmd->name = name;
-        cmd->do_cmd = do_cmd;
-        command_table[id] = (struct crush_command *) cmd;
-        cmd->child_count = 0;
-        if(id != CRUSH_COMMAND_PARENT_NONE) {
-                crush_command_container_add(parent, (struct crush_command *) cmd);
-        }
-        return cmd;
-}
-struct crush_command *crush_command_define(struct crush_container *parent, char *name, uint8_t (*do_cmd)(int argc, char **argv))
-{
-        uint8_t id = next_command_id++;
-        struct crush_command *cmd = malloc(sizeof(struct crush_command));
-        cmd->type = TYPE_COMMAND;
-        cmd->name = name;
-        cmd->do_cmd = do_cmd;
-        command_table[id] = cmd;
-        if(id != CRUSH_COMMAND_PARENT_NONE) {
-                crush_command_container_add(parent, cmd);
-        }
-        return cmd;
-}
-uint8_t crush_command_container_add(struct crush_container *parent, struct crush_command *child)
-{
-        if(parent->child_count >= CRUSH_SUBCOMMAND_MAX) {
-                printf("warning: %s: command '%s' max subcommands reached", __func__, crush_command_get_path((struct crush_command *)parent));
-                return CODE_NO_RESOURCE;
-        }
-        parent->child[parent->child_count++] = child;
-        return CODE_OK;
-}
-uint8_t crush_num_commands_defined()
-{
-        return next_command_id;
-}
-const char *crush_command_get_name(struct crush_command *command)
-{
-        return command->name;
-}
-// FIXME this scales horribly and generally wastes memory
-const char *crush_command_get_path(struct crush_command *command)
-{
-        if(command->parent) {
-                return strcat(command->name, crush_command_get_path((struct crush_command *)command->parent));
-        }
-        return command->name;
-}
-struct crush_command *crush_command_find(struct crush_container *parent, const char *name)
-{
-        for(uint8_t i = 0; i < parent->child_count; i++) {
-                if(strcmp(name, parent->child[i]->name))
-                        return parent->child[i];
-        }
-        return NULL;
-}
-uint8_t crush_command_exec(struct crush_command *command, int argc, char **argv)
-{
-        return command->do_cmd(argc, argv);
 }
 void set_option_font_size(char *value)
 {

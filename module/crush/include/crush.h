@@ -7,9 +7,12 @@
 #include <string.h>
 
 #include <light.h>
+#include <light_cli.h>
 
-#include <ft2build.h>
-#include <freetype/freetype.h>
+#include <crush_context.h>
+
+//#include <ft2build.h>
+//#include <freetype/freetype.h>
 
 #define CODE_OK                         0
 #define CODE_INVALID_ARG                1

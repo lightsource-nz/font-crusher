@@ -10,6 +10,7 @@
     "files.associations": {
         "crush.h": "c",
         "light.h": "c",
-        "light_core_port.h": "c"
+        "light_core_port.h": "c",
+        "mod_crush_context.h": "c"
     }
 }
