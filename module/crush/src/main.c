@@ -39,15 +39,15 @@ void set_option_out_filename(char *value);
 uint8_t set_option_dpi(char *value);
 int main(int argc, char *argv[])
 {
-        light_framework_init(argc, argv);
-        light_framework_run();
+        light_framework_init();
+        light_framework_run(argc, argv);
 }
 static void crush_app_event(const struct light_module *mod, uint8_t event_id, void *arg)
 {
         switch (event_id)
         {
-        case LF_EVENT_APP_LOAD:
-                struct light_event_app_load *event = (struct light_event_app_load *)arg;
+        case LF_EVENT_APP_LAUNCH:
+                struct light_event_app_launch *event = (struct light_event_app_launch *)arg;
                 
                 break;
         
