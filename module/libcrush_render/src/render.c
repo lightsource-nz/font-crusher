@@ -19,10 +19,12 @@ static void do_cmd_render_new(struct light_command *command);
 static void do_cmd_render_info(struct light_command *command);
 uint8_t crush_render_init(struct light_command *cmd_parent)
 {
-        struct light_command *cmd_render = light_cli_register_subcommand(
-                                                        cmd_parent, COMMAND_RENDER_NAME, COMMAND_RENDER_DESCRIPTION, do_cmd_render);
-        light_cli_register_subcommand(cmd_render, COMMAND_RENDER_NEW_NAME, COMMAND_RENDER_NEW_DESCRIPTION, do_cmd_render_new);
-        light_cli_register_subcommand(cmd_render, COMMAND_RENDER_INFO_NAME, COMMAND_RENDER_INFO_DESCRIPTION, do_cmd_render_info);
+        cmd_render = light_cli_register_subcommand(cmd_parent,
+                COMMAND_RENDER_NAME, COMMAND_RENDER_DESCRIPTION, do_cmd_render);
+        cmd_render_new = light_cli_register_subcommand(cmd_render,
+                COMMAND_RENDER_NEW_NAME, COMMAND_RENDER_NEW_DESCRIPTION, do_cmd_render_new);
+        cmd_render_info = light_cli_register_subcommand(cmd_render,
+                COMMAND_RENDER_INFO_NAME, COMMAND_RENDER_INFO_DESCRIPTION, do_cmd_render_info);
 
         return CODE_OK;
 }

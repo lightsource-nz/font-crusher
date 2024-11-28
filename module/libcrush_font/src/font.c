@@ -7,9 +7,9 @@
 #define COMMAND_FONT_REMOVE_NAME "remove"
 #define COMMAND_FONT_REMOVE_DESCRIPTION "removes an existing entry from the local crush font database"
 
-static struct light_command *command_font;
-static struct light_command *command_font_add;
-static struct light_command *command_font_remove;
+static struct light_command *cmd_font;
+static struct light_command *cmd_font_add;
+static struct light_command *cmd_font_remove;
 
 static void print_usage_font();
 static void print_usage_font_add();
@@ -19,25 +19,26 @@ static void do_cmd_font_add(struct light_command *command);
 static void do_cmd_font_remove(struct light_command *command);
 uint8_t crush_font_init(struct light_command *cmd_parent)
 {
-        command_font = light_cli_register_subcommand(
-                        cmd_parent, COMMAND_FONT_NAME, COMMAND_FONT_DESCRIPTION, do_cmd_font);
-        command_font_add = light_cli_register_subcommand(
-                        command_font, COMMAND_FONT_ADD_NAME, COMMAND_FONT_ADD_DESCRIPTION, do_cmd_font_add);
-        command_font_remove = light_cli_register_subcommand(command_font, COMMAND_FONT_REMOVE_NAME, COMMAND_FONT_REMOVE_DESCRIPTION, do_cmd_font_remove);
+        cmd_font = light_cli_register_subcommand(cmd_parent,
+                COMMAND_FONT_NAME, COMMAND_FONT_DESCRIPTION, do_cmd_font);
+        cmd_font_add = light_cli_register_subcommand(cmd_font,
+                COMMAND_FONT_ADD_NAME, COMMAND_FONT_ADD_DESCRIPTION, do_cmd_font_add);
+        cmd_font_remove = light_cli_register_subcommand(cmd_font,
+                COMMAND_FONT_REMOVE_NAME, COMMAND_FONT_REMOVE_DESCRIPTION, do_cmd_font_remove);
 
         return LIGHT_OK;
 }
 struct light_command *crush_font_get_command()
 {
-        return command_font;
+        return cmd_font;
 }
 struct light_command *crush_font_get_subcommand_add()
 {
-        return command_font_add;
+        return cmd_font_add;
 }
 struct light_command *crush_font_get_subcommand_remove()
 {
-        return command_font_remove;
+        return cmd_font_remove;
 }
 
 // shows information about the currently selected CRUSH_FONT, if any
