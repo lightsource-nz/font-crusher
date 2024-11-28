@@ -73,11 +73,11 @@ static void crush_init()
 {
         cmd_root = light_cli_register_command(
                 CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush);
-        crush_cmd_context_init(cmd_root);
-        crush_cmd_display_init(cmd_root);
-        crush_cmd_font_init(cmd_root);
-        crush_cmd_module_init(cmd_root);
-        crush_cmd_render_init(cmd_root);
+        crush_context_init(cmd_root);
+        crush_display_init(cmd_root);
+        crush_font_init(cmd_root);
+        crush_module_init(cmd_root);
+        crush_render_init(cmd_root);
 }
 uint8_t crush_process_command_line(int argc, char *argv[])
 {
@@ -112,12 +112,6 @@ uint8_t crush_process_command_line(int argc, char *argv[])
 
         return 0;
 }
-static uint8_t parse_command_name(const char *name)
-{
-        if(strcmp(name, STR_COMMAND_CONTEXT)) {
-
-        }
-}
 void set_option_font_size(char *value)
 {
         size_t length = strlen(value);
@@ -134,7 +128,7 @@ void set_option_font_size(char *value)
                 }
         }
 }
-struct crush_container *crush_command_root()
+struct light_command *crush_command_root()
 {
         return cmd_root;
 }

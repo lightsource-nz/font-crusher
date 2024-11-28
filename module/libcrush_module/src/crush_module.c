@@ -32,7 +32,7 @@ static void do_cmd_module_load(struct light_command *command);
 static void do_cmd_module_unload(struct light_command *command);
 static void do_cmd_module_add(struct light_command *command);
 static void do_cmd_module_remove(struct light_command *command);
-uint8_t crush_cmd_module_init(struct light_command *cmd_parent)
+uint8_t crush_module_init(struct light_command *cmd_parent)
 {
         command_crush_module = light_cli_register_subcommand(
                                                         cmd_parent, COMMAND_MODULE_NAME, COMMAND_MODULE_DESCRIPTION, do_cmd_module);

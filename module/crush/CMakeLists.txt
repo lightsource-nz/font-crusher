@@ -8,7 +8,6 @@ target_include_directories(
 
 target_sources(
         crush PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/src/font.c
         ${CMAKE_CURRENT_LIST_DIR}/src/main.c
 )
 

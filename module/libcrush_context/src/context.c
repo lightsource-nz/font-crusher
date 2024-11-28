@@ -20,7 +20,7 @@ static void do_cmd_context_new(struct light_command *command);
 static void do_cmd_context_set(struct light_command *command);
 static void do_cmd_context_push(struct light_command *command);
 static void do_cmd_context_pop(struct light_command *command);
-uint8_t crush_cmd_context_init(struct light_command *cmd_parent)
+uint8_t crush_context_init(struct light_command *cmd_parent)
 {
         struct light_command *cmd_context = light_cli_register_subcommand(
                                                         cmd_parent, COMMAND_CONTEXT_NAME, COMMAND_CONTEXT_DESCRIPTION, do_cmd_context);

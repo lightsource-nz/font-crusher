@@ -6,6 +6,7 @@ struct crush_module {
         uint8_t *path;
 };
 
+extern uint8_t crush_module_init(struct light_command *cmd_parent);
 extern struct light_command *crush_get_command_module();
 extern struct light_command *crush_get_command_module_push();
 extern struct light_command *crush_get_command_module_get();

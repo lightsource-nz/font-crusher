@@ -17,7 +17,7 @@ static void print_usage_context();
 static void do_cmd_display(struct light_command *command);
 static void do_cmd_display_import(struct light_command *command);
 static void do_cmd_display_info(struct light_command *command);
-uint8_t crush_cmd_display_init(struct light_command *cmd_parent)
+uint8_t crush_display_init(struct light_command *cmd_parent)
 {
         command_crush_display = light_cli_register_subcommand(
                                                         cmd_parent, COMMAND_DISPLAY_NAME, COMMAND_DISPLAY_DESCRIPTION, do_cmd_display);

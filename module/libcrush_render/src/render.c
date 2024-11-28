@@ -7,13 +7,17 @@
 #define COMMAND_RENDER_INFO_NAME                "info"
 #define COMMAND_RENDER_INFO_DESCRIPTION         "command used to view information about a given render data object"
 
+static struct light_command *cmd_render;
+static struct light_command *cmd_render_new;
+static struct light_command *cmd_render_info;
+
 static void print_usage_context();
 static void print_usage_context_new();
 static void print_usage_context_set();
 static void do_cmd_render(struct light_command *command);
 static void do_cmd_render_new(struct light_command *command);
 static void do_cmd_render_info(struct light_command *command);
-uint8_t crush_cmd_render_init(struct light_command *cmd_parent)
+uint8_t crush_render_init(struct light_command *cmd_parent)
 {
         struct light_command *cmd_render = light_cli_register_subcommand(
                                                         cmd_parent, COMMAND_RENDER_NAME, COMMAND_RENDER_DESCRIPTION, do_cmd_render);

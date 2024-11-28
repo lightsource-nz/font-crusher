@@ -6,6 +6,7 @@ struct crush_context {
         uint8_t *path;
 };
 
+extern uint8_t crush_context_init(struct light_command *cmd_parent);
 extern struct light_command *crush_context_get_subcommand_push();
 extern struct light_command *crush_context_get_subcommand_get();
 extern struct light_command *crush_context_get_subcommand_define();
