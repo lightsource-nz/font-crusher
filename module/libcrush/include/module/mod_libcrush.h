@@ -8,6 +8,6 @@
 
 #define LIBCRUSH_INFO_STR              "libcrush v" LIBCRUSH_VERSION_STR
 
-Light_Module_Declare(libcrush)
+Light_Module_Declare(libcrush);
 
 #endif

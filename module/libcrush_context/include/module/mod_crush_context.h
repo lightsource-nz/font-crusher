@@ -8,6 +8,6 @@
 
 #define LIBCRUSH_CONTEXT_INFO_STR              "libcrush_context v" LIBCRUSH_CONTEXT_VERSION_STR
 
-Light_Module_Declare(libcrush_context)
+Light_Module_Declare(libcrush_context);
 
 #endif

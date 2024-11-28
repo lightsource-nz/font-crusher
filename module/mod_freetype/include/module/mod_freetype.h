@@ -8,6 +8,6 @@
 
 #define MOD_FREETYPE_INFO_STR              "libcrush v" MOD_FREETYPE_VERSION_STR
 
-Light_Module_Declare(mod_freetype)
+Light_Module_Declare(mod_freetype);
 
 #endif

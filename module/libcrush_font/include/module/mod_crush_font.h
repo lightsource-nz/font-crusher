@@ -8,6 +8,6 @@
 
 #define LIBCRUSH_FONT_INFO_STR              "crush-context v" LIBCRUSH_FONT_VERSION_STR
 
-Light_Module_Declare(libcrush_font)
+Light_Module_Declare(libcrush_font);
 
 #endif
