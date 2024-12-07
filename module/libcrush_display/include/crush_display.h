@@ -1,6 +1,11 @@
 #ifndef _CRUSH_DISPLAY_H
 #define _CRUSH_DISPLAY_H
 
+Light_Subcommand_Declare(cmd_crush_display, cmd_crush);
+Light_Subcommand_Declare(cmd_crush_display_import, cmd_crush_display);
+Light_Subcommand_Declare(cmd_crush_display_info, cmd_crush_display);
+Light_Subcommand_Declare(cmd_crush_display_remove, cmd_crush_display);
+
 struct crush_display {
         uint8_t *name;
         uint8_t *description;

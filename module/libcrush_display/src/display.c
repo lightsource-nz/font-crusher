@@ -19,13 +19,15 @@ static void do_cmd_display_import(struct light_command *command);
 static void do_cmd_display_info(struct light_command *command);
 uint8_t crush_display_init(struct light_command *cmd_parent)
 {
+        /*
         cmd_display = light_cli_register_subcommand(cmd_parent,
                 COMMAND_DISPLAY_NAME, COMMAND_DISPLAY_DESCRIPTION, do_cmd_display);
         cmd_display_import = light_cli_register_subcommand(cmd_display,
                 COMMAND_DISPLAY_IMPORT_NAME, COMMAND_DISPLAY_IMPORT_DESCRIPTION, do_cmd_display_import);
         cmd_display_info = light_cli_register_subcommand(cmd_display,
                 COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info);
-
+        */
+       
         return CODE_OK;
 }
 struct light_command *crush_display_get_command()

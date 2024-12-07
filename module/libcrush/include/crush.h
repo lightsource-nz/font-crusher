@@ -9,6 +9,8 @@
 #include <light.h>
 #include <light_cli.h>
 
+Light_Command_Declare(cmd_crush);
+
 #include <crush_context.h>
 #include <crush_display.h>
 #include <crush_font.h>

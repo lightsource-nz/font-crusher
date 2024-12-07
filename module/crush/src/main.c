@@ -18,8 +18,6 @@ static char *out_dirname = NULL;
 static uint16_t dpi_h = DPI_H_DEFAULT;
 static uint16_t dpi_v = DPI_V_DEFAULT;
 
-static struct light_command *cmd_root;
-
 static void crush_app_event(const struct light_module *mod, uint8_t event, void *arg);
 static uint8_t crush_app_main(struct light_application *app);
 
@@ -29,6 +27,9 @@ Light_Application_Define(
         &light_cli,
         &light_core
 );
+
+static void do_cmd_crush(struct light_command *command);
+Light_Command_Define(cmd_crush, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush);
 
 static void crush_init();
 static void print_usage_context();
@@ -71,13 +72,15 @@ static void do_cmd_crush(struct light_command *command){
 // installed plugin modules
 static void crush_init()
 {
+        /*
         cmd_root = light_cli_register_command(
                 CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush);
         crush_context_init(cmd_root);
         crush_display_init(cmd_root);
         crush_font_init(cmd_root);
         crush_module_init(cmd_root);
-        crush_render_init(cmd_root);
+        crush_render_init(cmd_root);*/
+        
 }
 uint8_t crush_process_command_line(int argc, char *argv[])
 {
@@ -130,7 +133,7 @@ void set_option_font_size(char *value)
 }
 struct light_command *crush_command_root()
 {
-        return cmd_root;
+        return &cmd_crush;
 }
 void set_option_out_filename(char *value)
 {

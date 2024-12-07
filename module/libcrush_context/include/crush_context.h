@@ -1,6 +1,12 @@
 #ifndef _CRUSH_CONTEXT_H
 #define _CRUSH_CONTEXT_H
 
+Light_Subcommand_Declare(cmd_crush_context, cmd_crush);
+Light_Subcommand_Declare(cmd_crush_context_new, cmd_crush_context);
+Light_Subcommand_Declare(cmd_crush_context_set, cmd_crush_context);
+Light_Subcommand_Declare(cmd_crush_context_push, cmd_crush_context);
+Light_Subcommand_Declare(cmd_crush_context_pop, cmd_crush_context);
+
 struct crush_context {
         struct crush_context *parent;
         uint8_t *path;

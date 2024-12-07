@@ -13,12 +13,19 @@
 #define COMMAND_MODULE_REMOVE_NAME             "remove"
 #define COMMAND_MODULE_REMOVE_DESCRIPTION      "command used to remove an available crush module from this crush context"
 
-static struct light_command *cmd_module;
-static struct light_command *cmd_module_list;
-static struct light_command *cmd_module_load;
-static struct light_command *cmd_module_unload;
-static struct light_command *cmd_module_add;
-static struct light_command *cmd_module_remove;
+static void do_cmd_module(struct light_command *command);
+static void do_cmd_module_list(struct light_command *command);
+static void do_cmd_module_load(struct light_command *command);
+static void do_cmd_module_unload(struct light_command *command);
+static void do_cmd_module_add(struct light_command *command);
+static void do_cmd_module_remove(struct light_command *command);
+
+Light_Subcommand_Define(cmd_crush_module, &cmd_crush, COMMAND_MODULE_NAME, COMMAND_MODULE_DESCRIPTION, do_cmd_module);
+Light_Subcommand_Define(cmd_crush_module_list, &cmd_crush_module, COMMAND_MODULE_LIST_NAME, COMMAND_MODULE_LIST_DESCRIPTION, do_cmd_module_list);
+Light_Subcommand_Define(cmd_crush_module_load, &cmd_crush_module, COMMAND_MODULE_LOAD_NAME, COMMAND_MODULE_LOAD_DESCRIPTION, do_cmd_module_load);
+Light_Subcommand_Define(cmd_crush_module_unload, &cmd_crush_module, COMMAND_MODULE_UNLOAD_NAME, COMMAND_MODULE_UNLOAD_DESCRIPTION, do_cmd_module_unload);
+Light_Subcommand_Define(cmd_crush_module_add, &cmd_crush_module, COMMAND_MODULE_ADD_NAME, COMMAND_MODULE_ADD_DESCRIPTION, do_cmd_module_add);
+Light_Subcommand_Define(cmd_crush_module_remove, &cmd_crush_module, COMMAND_MODULE_REMOVE_NAME, COMMAND_MODULE_REMOVE_DESCRIPTION, do_cmd_module_remove);
 
 static void print_usage_module();
 static void print_usage_module_list();
@@ -26,14 +33,10 @@ static void print_usage_module_load();
 static void print_usage_module_unload();
 static void print_usage_module_add();
 static void print_usage_module_remove();
-static void do_cmd_module(struct light_command *command);
-static void do_cmd_module_list(struct light_command *command);
-static void do_cmd_module_load(struct light_command *command);
-static void do_cmd_module_unload(struct light_command *command);
-static void do_cmd_module_add(struct light_command *command);
-static void do_cmd_module_remove(struct light_command *command);
+
 uint8_t crush_module_init(struct light_command *cmd_parent)
 {
+        /*
         cmd_module = light_cli_register_subcommand(cmd_parent,
                 COMMAND_MODULE_NAME, COMMAND_MODULE_DESCRIPTION, do_cmd_module);
         cmd_module_list = light_cli_register_subcommand(cmd_module,
@@ -46,7 +49,8 @@ uint8_t crush_module_init(struct light_command *cmd_parent)
                 COMMAND_MODULE_ADD_NAME, COMMAND_MODULE_ADD_DESCRIPTION, do_cmd_module_add);
         cmd_module_remove = light_cli_register_subcommand(cmd_module,
                 COMMAND_MODULE_REMOVE_NAME, COMMAND_MODULE_REMOVE_DESCRIPTION, do_cmd_module_remove);
-
+        */
+       
         return CODE_OK;
 }
 // shows information about the currently selected CRUSH_MODULE, if any
