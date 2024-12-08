@@ -17,6 +17,11 @@ static void print_usage_font_remove();
 static void do_cmd_font(struct light_command *command);
 static void do_cmd_font_add(struct light_command *command);
 static void do_cmd_font_remove(struct light_command *command);
+
+Light_Subcommand_Define(cmd_crush_font, &cmd_crush, COMMAND_FONT_NAME, COMMAND_FONT_DESCRIPTION, do_cmd_font);
+Light_Subcommand_Define(cmd_crush_font_add, &cmd_crush_font, COMMAND_FONT_ADD_NAME, COMMAND_FONT_ADD_DESCRIPTION, do_cmd_font_add);
+Light_Subcommand_Define(cmd_crush_font_remove, &cmd_crush_font, COMMAND_FONT_REMOVE_NAME, COMMAND_FONT_REMOVE_DESCRIPTION, do_cmd_font_remove);
+
 uint8_t crush_font_init(struct light_command *cmd_parent)
 {
         /*

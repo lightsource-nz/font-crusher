@@ -17,6 +17,11 @@ static void print_usage_context();
 static void do_cmd_display(struct light_command *command);
 static void do_cmd_display_import(struct light_command *command);
 static void do_cmd_display_info(struct light_command *command);
+
+Light_Subcommand_Define(cmd_crush_display, &cmd_crush, COMMAND_DISPLAY_NAME, COMMAND_DISPLAY_DESCRIPTION, do_cmd_display);
+Light_Subcommand_Define(cmd_crush_display_import, &cmd_crush_display, COMMAND_DISPLAY_IMPORT_NAME, COMMAND_DISPLAY_IMPORT_DESCRIPTION, do_cmd_display_import);
+Light_Subcommand_Define(cmd_crush_display_info, &cmd_crush_display, COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info);
+
 uint8_t crush_display_init(struct light_command *cmd_parent)
 {
         /*
