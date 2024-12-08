@@ -24,15 +24,6 @@ Light_Subcommand_Define(cmd_crush_font_remove, &cmd_crush_font, COMMAND_FONT_REM
 
 uint8_t crush_font_init(struct light_command *cmd_parent)
 {
-        /*
-        cmd_font = light_cli_register_subcommand(cmd_parent,
-                COMMAND_FONT_NAME, COMMAND_FONT_DESCRIPTION, do_cmd_font);
-        cmd_font_add = light_cli_register_subcommand(cmd_font,
-                COMMAND_FONT_ADD_NAME, COMMAND_FONT_ADD_DESCRIPTION, do_cmd_font_add);
-        cmd_font_remove = light_cli_register_subcommand(cmd_font,
-                COMMAND_FONT_REMOVE_NAME, COMMAND_FONT_REMOVE_DESCRIPTION, do_cmd_font_remove);
-        */
-
         return LIGHT_OK;
 }
 struct light_command *crush_font_get_command()

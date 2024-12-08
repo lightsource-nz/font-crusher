@@ -36,21 +36,6 @@ static void print_usage_module_remove();
 
 uint8_t crush_module_init(struct light_command *cmd_parent)
 {
-        /*
-        cmd_module = light_cli_register_subcommand(cmd_parent,
-                COMMAND_MODULE_NAME, COMMAND_MODULE_DESCRIPTION, do_cmd_module);
-        cmd_module_list = light_cli_register_subcommand(cmd_module,
-                COMMAND_MODULE_LIST_NAME, COMMAND_MODULE_LIST_DESCRIPTION, do_cmd_module_list);
-        cmd_module_load = light_cli_register_subcommand(cmd_module,
-                COMMAND_MODULE_LOAD_NAME, COMMAND_MODULE_LOAD_DESCRIPTION, do_cmd_module_load);
-        cmd_module_unload = light_cli_register_subcommand(cmd_module,
-                COMMAND_MODULE_UNLOAD_NAME, COMMAND_MODULE_UNLOAD_DESCRIPTION, do_cmd_module_unload);
-        cmd_module_add = light_cli_register_subcommand(cmd_module,
-                COMMAND_MODULE_ADD_NAME, COMMAND_MODULE_ADD_DESCRIPTION, do_cmd_module_add);
-        cmd_module_remove = light_cli_register_subcommand(cmd_module,
-                COMMAND_MODULE_REMOVE_NAME, COMMAND_MODULE_REMOVE_DESCRIPTION, do_cmd_module_remove);
-        */
-       
         return CODE_OK;
 }
 // shows information about the currently selected CRUSH_MODULE, if any

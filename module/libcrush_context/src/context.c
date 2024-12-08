@@ -29,19 +29,6 @@ static void print_usage_context_push();
 static void print_usage_context_pop();
 uint8_t crush_context_init(struct light_command *cmd_parent)
 {
-        /*
-        cmd_context = light_cli_register_subcommand(cmd_parent,
-                COMMAND_CONTEXT_NAME, COMMAND_CONTEXT_DESCRIPTION, do_cmd_context);
-        cmd_context_new = light_cli_register_subcommand(cmd_context,
-                COMMAND_CONTEXT_NEW_NAME, COMMAND_CONTEXT_NEW_DESCRIPTION, do_cmd_context_new);
-        cmd_context_set = light_cli_register_subcommand(cmd_context,
-                COMMAND_CONTEXT_SET_NAME, COMMAND_CONTEXT_SET_DESCRIPTION, do_cmd_context_set);
-        cmd_context_push = light_cli_register_subcommand(cmd_context,
-                COMMAND_CONTEXT_PUSH_NAME, COMMAND_CONTEXT_PUSH_DESCRIPTION, do_cmd_context_push);
-        cmd_context_pop = light_cli_register_subcommand(cmd_context,
-                COMMAND_CONTEXT_POP_NAME, COMMAND_CONTEXT_POP_DESCRIPTION, do_cmd_context_pop);
-        */
-       
         return CODE_OK;
 }
 struct light_command *crush_context_get_command()
