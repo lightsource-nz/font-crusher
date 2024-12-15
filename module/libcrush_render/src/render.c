@@ -19,19 +19,12 @@ Light_Command_Define(cmd_crush_render_new, &cmd_crush_render, COMMAND_RENDER_NEW
 Light_Command_Define(cmd_crush_render_info, &cmd_crush_render, COMMAND_RENDER_INFO_NAME, COMMAND_RENDER_INFO_DESCRIPTION, do_cmd_render_info, 0, 1);
 Light_Command_Define(cmd_crush_render_list, &cmd_crush_render, COMMAND_RENDER_LIST_NAME, COMMAND_RENDER_LIST_DESCRIPTION, do_cmd_render_list, 1, 2);
 
-static void print_usage_context();
-static void print_usage_context_new();
-static void print_usage_context_set();
+static void print_usage_render();
+static void print_usage_render_new();
+static void print_usage_render_info();
+static void print_usage_render_list();
 uint8_t crush_render_init(struct light_command *cmd_parent)
 {
-        /*
-        cmd_render = light_cli_register_subcommand(cmd_parent,
-                COMMAND_RENDER_NAME, COMMAND_RENDER_DESCRIPTION, do_cmd_render);
-        cmd_render_new = light_cli_register_subcommand(cmd_render,
-                COMMAND_RENDER_NEW_NAME, COMMAND_RENDER_NEW_DESCRIPTION, do_cmd_render_new);
-        cmd_render_info = light_cli_register_subcommand(cmd_render,
-                COMMAND_RENDER_INFO_NAME, COMMAND_RENDER_INFO_DESCRIPTION, do_cmd_render_info);
-        */
         return CODE_OK;
 }
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)
@@ -52,11 +45,32 @@ static struct light_cli_invocation_result do_cmd_render_list(struct light_cli_in
         return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
 
-static void print_usage_context()
+static void print_usage_render()
 {
         printf(
                 "Usage:\n"
                 "crush render list \n"
                 "crush render new <render_id> -f <font_id> -d <display_id> \n"
+        );
+}
+static void print_usage_render_new()
+{
+        printf(
+                "Usage:\n"
+                "crush render new <render_id> -f <font_id> -d <display_id> \n"
+        );
+}
+static void print_usage_render_info()
+{
+        printf(
+                "Usage:\n"
+                "crush render info <render_id> \n"
+        );
+}
+static void print_usage_render_list()
+{
+        printf(
+                "Usage:\n"
+                "crush render list \n"
         );
 }
