@@ -1,9 +1,9 @@
 #ifndef _CRUSH_MODULE_H
 #define _CRUSH_MODULE_H
 
-Light_Subcommand_Declare(cmd_crush_module, cmd_crush);
-Light_Subcommand_Declare(cmd_crush_module_info, cmd_crush_module);
-Light_Subcommand_Declare(cmd_crush_module_import, cmd_crush_module);
+Light_Command_Declare(cmd_crush_module, cmd_crush);
+Light_Command_Declare(cmd_crush_module_info, cmd_crush_module);
+Light_Command_Declare(cmd_crush_module_import, cmd_crush_module);
 
 struct crush_module {
         struct crush_module *parent;

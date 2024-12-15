@@ -28,8 +28,8 @@ Light_Application_Define(
         &light_core
 );
 
-static void do_cmd_crush(struct light_command *command);
-Light_Command_Define(cmd_crush, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush);
+static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke);
+Light_Command_Define(cmd_crush, NULL, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush, 0, 0);
 
 static void crush_init();
 static void print_usage_context();
@@ -64,8 +64,9 @@ static uint8_t crush_app_main(struct light_application *app)
         // default application lifecycle for command executables is run once then shutdown
         return LF_STATUS_SHUTDOWN;
 }
-static void do_cmd_crush(struct light_command *command){
+static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke){
         print_usage_context();
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
 // perform all init activities that take place before the parsing of
 // command line arguments, such as loading built-in commands, and

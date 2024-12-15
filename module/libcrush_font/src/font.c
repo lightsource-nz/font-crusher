@@ -16,17 +16,17 @@ static void print_usage_font_add();
 static void print_usage_font_remove();
 static void print_usage_font_info();
 static void print_usage_font_list();
-static void do_cmd_font(struct light_command *command);
-static void do_cmd_font_add(struct light_command *command);
-static void do_cmd_font_remove(struct light_command *command);
-static void do_cmd_font_info(struct light_command *command);
-static void do_cmd_font_list(struct light_command *command);
+static struct light_cli_invocation_result do_cmd_font(struct light_cli_invocation *invoke);
+static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invocation *invoke);
+static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke);
+static struct light_cli_invocation_result do_cmd_font_info(struct light_cli_invocation *invoke);
+static struct light_cli_invocation_result do_cmd_font_list(struct light_cli_invocation *invoke);
 
-Light_Subcommand_Define(cmd_crush_font, &cmd_crush, COMMAND_FONT_NAME, COMMAND_FONT_DESCRIPTION, do_cmd_font);
-Light_Subcommand_Define(cmd_crush_font_add, &cmd_crush_font, COMMAND_FONT_ADD_NAME, COMMAND_FONT_ADD_DESCRIPTION, do_cmd_font_add);
-Light_Subcommand_Define(cmd_crush_font_remove, &cmd_crush_font, COMMAND_FONT_REMOVE_NAME, COMMAND_FONT_REMOVE_DESCRIPTION, do_cmd_font_remove);
-Light_Subcommand_Define(cmd_crush_font_info, &cmd_crush_font, COMMAND_FONT_INFO_NAME, COMMAND_FONT_INFO_DESCRIPTION, do_cmd_font_info);
-Light_Subcommand_Define(cmd_crush_font_list, &cmd_crush_font, COMMAND_FONT_LIST_NAME, COMMAND_FONT_LIST_DESCRIPTION, do_cmd_font_list);
+Light_Command_Define(cmd_crush_font, &cmd_crush, COMMAND_FONT_NAME, COMMAND_FONT_DESCRIPTION, do_cmd_font, 0, 0);
+Light_Command_Define(cmd_crush_font_add, &cmd_crush_font, COMMAND_FONT_ADD_NAME, COMMAND_FONT_ADD_DESCRIPTION, do_cmd_font_add, 1, 1);
+Light_Command_Define(cmd_crush_font_remove, &cmd_crush_font, COMMAND_FONT_REMOVE_NAME, COMMAND_FONT_REMOVE_DESCRIPTION, do_cmd_font_remove, 1, 1);
+Light_Command_Define(cmd_crush_font_info, &cmd_crush_font, COMMAND_FONT_INFO_NAME, COMMAND_FONT_INFO_DESCRIPTION, do_cmd_font_info, 1, 1);
+Light_Command_Define(cmd_crush_font_list, &cmd_crush_font, COMMAND_FONT_LIST_NAME, COMMAND_FONT_LIST_DESCRIPTION, do_cmd_font_list, 0, 0);
 
 uint8_t crush_font_init(struct light_command *cmd_parent)
 {
@@ -54,26 +54,26 @@ struct light_command *crush_font_get_subcommand_list()
 }
 
 // shows information about the currently selected CRUSH_FONT, if any
-static void do_cmd_font(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_font(struct light_cli_invocation *invoke)
 {
         // pull value of CRUSH_FONT environment variable
-        
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_font_add(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invocation *invoke)
 {
-        
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_font_remove(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke)
 {
-
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_font_info(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_font_info(struct light_cli_invocation *invoke)
 {
-
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_font_list(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_font_list(struct light_cli_invocation *invoke)
 {
-
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
 static void print_usage_font()
 {

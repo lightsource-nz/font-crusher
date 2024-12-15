@@ -13,19 +13,19 @@
 #define COMMAND_MODULE_REMOVE_NAME             "remove"
 #define COMMAND_MODULE_REMOVE_DESCRIPTION      "command used to remove an available crush module from this crush context"
 
-static void do_cmd_module(struct light_command *command);
-static void do_cmd_module_list(struct light_command *command);
-static void do_cmd_module_load(struct light_command *command);
-static void do_cmd_module_unload(struct light_command *command);
-static void do_cmd_module_add(struct light_command *command);
-static void do_cmd_module_remove(struct light_command *command);
+static struct light_cli_invocation_result do_cmd_module(struct light_cli_invocation *command);
+static struct light_cli_invocation_result do_cmd_module_list(struct light_cli_invocation *command);
+static struct light_cli_invocation_result do_cmd_module_load(struct light_cli_invocation *command);
+static struct light_cli_invocation_result do_cmd_module_unload(struct light_cli_invocation *command);
+static struct light_cli_invocation_result do_cmd_module_add(struct light_cli_invocation *command);
+static struct light_cli_invocation_result do_cmd_module_remove(struct light_cli_invocation *command);
 
-Light_Subcommand_Define(cmd_crush_module, &cmd_crush, COMMAND_MODULE_NAME, COMMAND_MODULE_DESCRIPTION, do_cmd_module);
-Light_Subcommand_Define(cmd_crush_module_list, &cmd_crush_module, COMMAND_MODULE_LIST_NAME, COMMAND_MODULE_LIST_DESCRIPTION, do_cmd_module_list);
-Light_Subcommand_Define(cmd_crush_module_load, &cmd_crush_module, COMMAND_MODULE_LOAD_NAME, COMMAND_MODULE_LOAD_DESCRIPTION, do_cmd_module_load);
-Light_Subcommand_Define(cmd_crush_module_unload, &cmd_crush_module, COMMAND_MODULE_UNLOAD_NAME, COMMAND_MODULE_UNLOAD_DESCRIPTION, do_cmd_module_unload);
-Light_Subcommand_Define(cmd_crush_module_add, &cmd_crush_module, COMMAND_MODULE_ADD_NAME, COMMAND_MODULE_ADD_DESCRIPTION, do_cmd_module_add);
-Light_Subcommand_Define(cmd_crush_module_remove, &cmd_crush_module, COMMAND_MODULE_REMOVE_NAME, COMMAND_MODULE_REMOVE_DESCRIPTION, do_cmd_module_remove);
+Light_Command_Define(cmd_crush_module, &cmd_crush, COMMAND_MODULE_NAME, COMMAND_MODULE_DESCRIPTION, do_cmd_module, 0, 0);
+Light_Command_Define(cmd_crush_module_list, &cmd_crush_module, COMMAND_MODULE_LIST_NAME, COMMAND_MODULE_LIST_DESCRIPTION, do_cmd_module_list, 0, 0);
+Light_Command_Define(cmd_crush_module_load, &cmd_crush_module, COMMAND_MODULE_LOAD_NAME, COMMAND_MODULE_LOAD_DESCRIPTION, do_cmd_module_load, 1, 2);
+Light_Command_Define(cmd_crush_module_unload, &cmd_crush_module, COMMAND_MODULE_UNLOAD_NAME, COMMAND_MODULE_UNLOAD_DESCRIPTION, do_cmd_module_unload, 1, 1);
+Light_Command_Define(cmd_crush_module_add, &cmd_crush_module, COMMAND_MODULE_ADD_NAME, COMMAND_MODULE_ADD_DESCRIPTION, do_cmd_module_add, 1, 1);
+Light_Command_Define(cmd_crush_module_remove, &cmd_crush_module, COMMAND_MODULE_REMOVE_NAME, COMMAND_MODULE_REMOVE_DESCRIPTION, do_cmd_module_remove, 1, 1);
 
 static void print_usage_module();
 static void print_usage_module_list();
@@ -39,30 +39,30 @@ uint8_t crush_module_init(struct light_command *cmd_parent)
         return CODE_OK;
 }
 // shows information about the currently selected CRUSH_MODULE, if any
-static void do_cmd_module(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_module(struct light_cli_invocation *command)
 {
         // pull value of CRUSH_MODULE environment variable
-        
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_module_list(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_module_list(struct light_cli_invocation *command)
 {
-        
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_module_load(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_module_load(struct light_cli_invocation *command)
 {
-        
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_module_unload(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_module_unload(struct light_cli_invocation *command)
 {
-        
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_module_add(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_module_add(struct light_cli_invocation *command)
 {
-
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void do_cmd_module_remove(struct light_command *command)
+static struct light_cli_invocation_result do_cmd_module_remove(struct light_cli_invocation *command)
 {
-        
+        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
 static void print_usage_module()
 {

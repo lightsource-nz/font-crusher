@@ -9,7 +9,7 @@
 #include <light.h>
 #include <light_cli.h>
 
-Light_Command_Declare(cmd_crush);
+Light_Command_Declare(cmd_crush, NULL);
 
 #include <crush_context.h>
 #include <crush_display.h>

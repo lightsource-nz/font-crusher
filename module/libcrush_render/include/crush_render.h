@@ -1,9 +1,9 @@
 #ifndef _CRUSH_RENDER_H
 #define _CRUSH_RENDER_H
 
-Light_Subcommand_Declare(cmd_crush_render, cmd_crush);
-Light_Subcommand_Declare(cmd_crush_render_new, cmd_crush_render);
-Light_Subcommand_Declare(cmd_crush_render_info, cmd_crush_render);
+Light_Command_Declare(cmd_crush_render, cmd_crush);
+Light_Command_Declare(cmd_crush_render_new, cmd_crush_render);
+Light_Command_Declare(cmd_crush_render_info, cmd_crush_render);
 
 struct crush_render {
         uint8_t *path;
