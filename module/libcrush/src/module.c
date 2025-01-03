@@ -1,5 +1,6 @@
 #include <light.h>
 #include <module/mod_light_cli.h>
+#include <module/mod_crush_common.h>
 #include <module/mod_crush_context.h>
 #include <module/mod_crush_display.h>
 #include <module/mod_crush_font.h>
@@ -27,6 +28,7 @@ static void _module_event(const struct light_module *module, uint8_t event, void
         }
 }
 Light_Module_Define(libcrush, _module_event,
+                                                &libcrush_common,
                                                 &libcrush_context,
                                                 &libcrush_display,
                                                 &libcrush_font,

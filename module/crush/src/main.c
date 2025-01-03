@@ -76,7 +76,7 @@ static void crush_init()
         /*
         cmd_root = light_cli_register_command(
                 CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush);
-        crush_context_init(cmd_root);
+        crush_cmd_context_init(cmd_root);
         crush_display_init(cmd_root);
         crush_font_init(cmd_root);
         crush_module_init(cmd_root);

@@ -15,6 +15,7 @@ target_sources(
 target_link_libraries(
         libcrush
         INTERFACE
+        libcrush_common
         libcrush_context
         libcrush_display
         libcrush_font

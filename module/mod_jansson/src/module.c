@@ -1,13 +1,9 @@
 #include <light.h>
-#include <module/mod_crush_context.h>
-#include <module/mod_light_cli.h>
-#include <module/mod_freetype.h>
-
-#include "render_private.h"
+#include <module/mod_jansson.h>
 
 static void _event_load(const struct light_module *module)
 {
-        _render_load_event();
+        
 }
 static void _event_unload(const struct light_module *module)
 {
@@ -24,7 +20,5 @@ static void _module_event(const struct light_module *module, uint8_t event, void
                 break;
         }
 }
-Light_Module_Define(libcrush_render, _module_event,
-                                                &mod_freetype,
-                                                &light_cli,
+Light_Module_Define(mod_jansson, _module_event,
                                                 &light_core);

@@ -27,27 +27,27 @@ static void print_usage_context_new();
 static void print_usage_context_set();
 static void print_usage_context_push();
 static void print_usage_context_pop();
-uint8_t crush_context_init(struct light_command *cmd_parent)
+uint8_t crush_cmd_context_init(struct light_command *cmd_parent)
 {
         return CODE_OK;
 }
-struct light_command *crush_context_get_command()
+struct light_command *crush_cmd_context_get_command()
 {
         return &cmd_crush_context;
 }
-struct light_command *crush_context_get_subcommand_new()
+struct light_command *crush_cmd_context_get_subcommand_new()
 {
         return &cmd_crush_context_new;
 }
-struct light_command *crush_context_get_subcommand_set()
+struct light_command *crush_cmd_context_get_subcommand_set()
 {
         return &cmd_crush_context_set;
 }
-struct light_command *crush_context_get_subcommand_push()
+struct light_command *crush_cmd_context_get_subcommand_push()
 {
         return &cmd_crush_context_push;
 }
-struct light_command *crush_context_get_subcommand_pop()
+struct light_command *crush_cmd_context_get_subcommand_pop()
 {
         return &cmd_crush_context_pop;
 }

@@ -4,3 +4,12 @@
 [submodule "cmake/light_presets"]
 	path = cmake/light_presets
 	url = https://github.com/lightsource-nz/light_presets.git
+[submodule "modules/libcrush_common/lib/jansson"]
+	path = modules/libcrush_common/lib/jansson
+	url = https://github.com/akheron/jansson.git
+[submodule "module/libcrush_common/lib/jansson"]
+	path = module/libcrush_common/lib/jansson
+	url = https://github.com/akheron/jansson.git
+[submodule "module/mod_jansson/lib/jansson"]
+	path = module/mod_jansson/lib/jansson
+	url = https://github.com/akheron/jansson.git
