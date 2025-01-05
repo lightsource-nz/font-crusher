@@ -1,3 +1,6 @@
+#ifdef __GNUC__
+#define _GNU_SOURCE
+#endif
 #include <crush_common.h>
 #include <jansson.h>
 
@@ -21,9 +24,11 @@ void crush_common_init()
 }
 
 // -- context loader routine
-// 1: determine context path
-// - check 'CRUSH_CONTEXT' environment variable
+// 1: locate context root by attempting to load 'context.json' from different paths
+// - try $env[CRUSH_CONTEXT] if it exists
 // - search for a '.crush' directory under CWD (?)
+// - fall back to default context under user home, if this context does not already exist
+//   then we attempt to create it before loading
 static void crush_load_context_from_filesystem()
 {
 #ifdef __GNUC__
@@ -61,8 +66,15 @@ struct crush_context *crush_context_try_load_from_path(uint8_t *path)
         fclose(ctx_file);
         json_error_t err;
         struct crush_json context_root_json = { json_load_file(ctx_file_path, 0, &err) };
-
         light_free(ctx_file_path);
+
+        // we have loaded our context root as a json object, ready to be parsed
+        struct crush_context *context = light_alloc(sizeof(struct crush_context));
+        if(!context) {
+                light_fatal("failed to allocate memory for context object");
+        }
+
+        return context;
 }
 // NOTE this routine assumes that all input paths are normalized, and path0 specifically is
 // the path to a directory with no trailing path separator
@@ -81,6 +93,7 @@ uint8_t *crush_path_join(uint8_t *path0, uint8_t *path1)
                 return NULL;
         }
 
+        // TODO this requires adding a calloc proxy routine to the light_common api
         uint8_t *out = calloc(sizeof(uint8_t), total_length);
         strcat(out, path0);
         strcat(out, "/");
