@@ -8,6 +8,13 @@
 
 #include <light.h>
 
+// TODO make sure hardcoded paths work on wind cows etc
+#define CRUSH_CONTEXT_PATH_LOCAL "./.crush"
+// NOTE we need to enforce a hard limit on path length for security reasons, but the
+// exact value of that limit is less crucial. I think 255 is at least as long
+// as the path length limit on most real platforms.
+#define CRUSH_MAX_PATH_LENGTH           255
+
 #define CRUSH_CONTEXT_VARNAME "CRUSH_CONTEXT"
 #define CRUSH_CONTEXT_DEFAULT_PATH "~/.crush"
 #define CRUSH_CONTEXT_ROOT_JSON_FILE "context.json"

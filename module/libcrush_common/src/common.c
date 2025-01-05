@@ -8,13 +8,6 @@
 #include <dirent.h>
 #include <stdio.h>
 
-// TODO make sure hardcoded paths work on wind cows etc
-#define CRUSH_CONTEXT_PATH_LOCAL "./.crush"
-// NOTE we need to enforce a hard limit on path length for security reasons, but the
-// exact value of that limit is less crucial. I think 255 is at least as long
-// as the path length limit on most real platforms.
-#define CRUSH_MAX_PATH_LENGTH           255
-
 static void crush_load_context_from_filesystem();
 void crush_common_init()
 {
