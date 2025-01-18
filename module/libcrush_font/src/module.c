@@ -2,6 +2,10 @@
 #include <module/mod_crush_context.h>
 #include <module/mod_light_cli.h>
 
+#include <light_cli.h>
+#include <crush_common.h>
+#include <crush_font.h>
+
 static void _event_load(const struct light_module *module)
 {
         

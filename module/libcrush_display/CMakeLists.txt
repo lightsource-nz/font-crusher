@@ -15,6 +15,7 @@ target_sources(
 target_link_libraries(
         libcrush_display
         INTERFACE
+        libcrush_common
         light_core
         light_cli
 )

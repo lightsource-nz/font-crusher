@@ -1,6 +1,7 @@
 #include <crush.h>
 
 #include <light_cli.h>
+#include <jansson.h>
 
 #define COMMAND_DISPLAY_NAME                    "display"
 #define COMMAND_DISPLAY_DESCRIPTION             "command used to interact with entries in the crush display database"
@@ -29,6 +30,8 @@ Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY
 
 uint8_t crush_display_init(struct light_command *cmd_parent)
 {
+        crush_common_register_context_object_loader(CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, CRUSH_DISPLAY_CONTEXT_JSON_FILE,
+                                        crush_display_create_context, crush_display_load_context);
         /*
         cmd_display = light_cli_register_subcommand(cmd_parent,
                 COMMAND_DISPLAY_NAME, COMMAND_DISPLAY_DESCRIPTION, do_cmd_display);
@@ -39,6 +42,42 @@ uint8_t crush_display_init(struct light_command *cmd_parent)
         */
        
         return CODE_OK;
+}
+struct crush_json crush_display_create_context()
+{
+        json_t *display_obj = json_pack(
+                "{"
+                        "s:i,"                  // "version":           SCHEMA_VERSION,
+                        "s:s,"                  // "type":              "crush:module",
+                        "s:[]"                  // "contextDisplays"
+                "}",
+                "version",      CRUSH_CONTEXT_JSON_SCHEMA_VERSION,
+                "type",         CRUSH_DISPLAY_CONTEXT_OBJECT_NAME,
+                "contextDisplays");
+                return (struct crush_json) { display_obj };
+}
+void crush_display_load_context(struct crush_context *context, struct crush_json json)
+{
+        struct crush_display_context *display_context = light_alloc(sizeof(struct crush_display_context));
+        display_context->data = json;
+        crush_context_add_context_object(context, CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, (void *)display_context);
+}
+struct crush_display *crush_display_context_get(struct crush_display_context *context, uint8_t id)
+{
+        uint8_t *name, *description;
+        uint16_t res_h, res_v, ppi_h, ppi_v;
+        double height_mm, width_mm;
+        json_unpack(context->data.target, "{s:{s:{s:s,s?:s,s:s,s:s,s:s,s:s,s?:s,s?:s}}}", "displayObjects",
+                id, "name", &name, "description", &description, "res_h", &res_h, "res_v", &res_v,
+                "ppi_h", &ppi_h, "ppi_v", &ppi_v, "height_mm", &height_mm, "width_mm", &width_mm);
+        struct crush_display *display = light_alloc(sizeof(struct crush_display));
+        display->name = name;
+        display->description = description;
+        display->resolution_h = res_h;
+        display->resolution_v = res_v;
+        display->ppi_h = ppi_h;
+        display->ppi_v = ppi_v;
+        return display;
 }
 struct light_command *crush_display_get_command()
 {

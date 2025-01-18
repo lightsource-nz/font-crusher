@@ -13,6 +13,11 @@
         "light_core_port.h": "c",
         "mod_crush_context.h": "c",
         "crush_context.h": "c",
-        "crush_common.h": "c"
+        "crush_common.h": "c",
+        "mod_crush_common.h": "c",
+        "crush_module.h": "c",
+        "crush_display.h": "c",
+        "crush_render.h": "c",
+        "crush_font.h": "c"
     }
 }

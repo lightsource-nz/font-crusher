@@ -1,9 +1,14 @@
 #include <light.h>
 #include <module/mod_light_cli.h>
 
+#include <crush_common.h>
+#include <crush_module.h>
+
 static void _event_load(const struct light_module *module)
 {
-        
+        crush_common_register_context_object_loader(
+                CRUSH_MODULE_CONTEXT_OBJECT_NAME, CRUSH_MODULE_CONTEXT_JSON_FILE, 
+                                        crush_module_create_context, crush_module_load_context);
 }
 static void _event_unload(const struct light_module *module)
 {

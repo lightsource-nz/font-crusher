@@ -11,6 +11,7 @@
 
 Light_Command_Declare(cmd_crush, NULL);
 
+#include <crush_common.h>
 #include <crush_context.h>
 #include <crush_display.h>
 #include <crush_font.h>
