@@ -149,12 +149,12 @@ bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *conte
         // before return we should release the in-memory JSON object structure
         json_decref(context_root_json.target);
         return true;
-        _error:
-                // failure to find a context is not strictly an error, so just return false
-                light_debug("no crush context found at filesystem path '%s'", path);
-                if(real_path) light_free(real_path);
-                if(ctx_file_path) light_free(ctx_file_path);
-                return false;
+_error:
+        // failure to find a context is not strictly an error, so just return false
+        light_debug("no crush context found at filesystem path '%s'", path);
+        if(real_path) light_free(real_path);
+        if(ctx_file_path) light_free(ctx_file_path);
+        return false;
 }
 // the structure of the context data structure will presumably evolve to become more flexible
 // in terms of the content it may contain. right now we have the four core context objects
