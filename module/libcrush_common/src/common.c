@@ -89,18 +89,18 @@ static struct crush_context *crush_load_context_from_filesystem(struct crush_con
         context_root = CRUSH_CONTEXT_PATH_LOCAL;
         context_path = crush_path_join(context_root, DOTCRUSH);
         succeeded = crush_context_try_load_from_path(context_path, context);
+        light_free(context_path);
         if(!succeeded) {
         // finally, we look for the default context located in user home
                 context_root = light_platform_get_user_home();
-                light_free(context_path);
                 context_path = crush_path_join(context_root, DOTCRUSH);
                 succeeded = crush_context_try_load_from_path(context_path, context);
+                light_free(context_path);
         }
         if(!succeeded) {
                 light_info("crush context not found, creating default context under user home");
                 crush_context_create_under_path(light_platform_get_user_home(), context);
         }
-        light_free(context_path);
         return context;
 }
 
