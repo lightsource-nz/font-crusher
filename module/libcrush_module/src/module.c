@@ -1,4 +1,5 @@
 #include <light.h>
+#include <light_cli.h>
 #include <module/mod_light_cli.h>
 
 #include <crush_common.h>

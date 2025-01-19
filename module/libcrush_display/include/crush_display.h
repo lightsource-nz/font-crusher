@@ -25,7 +25,7 @@ struct crush_display_context {
         struct crush_display *(*get)(uint8_t name);
 };
 
-extern uint8_t crush_display_init(struct light_command *cmd_parent);
+extern uint8_t crush_display_init();
 extern struct crush_json crush_display_create_context();
 extern void crush_display_load_context(struct crush_context *context, struct crush_json json);
 extern struct crush_display *crush_display_context_get(struct crush_display_context *context, uint8_t name);

@@ -8,7 +8,7 @@
 
 static void _event_load(const struct light_module *module)
 {
-        
+        crush_font_init();
 }
 static void _event_unload(const struct light_module *module)
 {

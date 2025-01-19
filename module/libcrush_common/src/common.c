@@ -11,18 +11,21 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #define LOADER_MAX              16
 
 struct object_loader {
         uint8_t *name;
-        uint8_t filename;
+        uint8_t *filename;
         struct crush_json (*create)();
         void (*load)(struct crush_context *, struct crush_json);
 };
 
 // alias long constant names with shorter local ones
 #define SCHEMA_VERSION  CRUSH_CONTEXT_JSON_SCHEMA_VERSION
+#define OBJECT_NAME     CRUSH_CONTEXT_OBJECT_NAME
+#define JSON_FILE       CRUSH_CONTEXT_JSON_FILE
 
 static struct object_loader loader[LOADER_MAX]; 
 static uint8_t next_loader;
@@ -47,7 +50,7 @@ void crush_common_register_context_object_loader(uint8_t *name, uint8_t *filenam
         if(next_loader > LOADER_MAX) {
                 light_fatal("could not register loader '%s', maximum number of object loaders reached (%i)", name, LOADER_MAX);
         }
-        loader[next_loader++]= (struct object_loader) {.name = name, .create = create, .load = load};
+        loader[next_loader++]= (struct object_loader) {.name = name, .filename = filename, .create = create, .load = load};
 }
 // -- context loader routine
 // 1: locate context root by attempting to load 'context.json' from different paths
@@ -57,49 +60,49 @@ void crush_common_register_context_object_loader(uint8_t *name, uint8_t *filenam
 //   then we attempt to create it before loading
 static struct crush_context *crush_load_context_from_filesystem(struct crush_context *context)
 {
-        uint8_t *context_path, *root_file_path;
+        uint8_t *context_root, *context_path, *context_file_path;
         bool succeeded = false;
         // first, we try the path indicated by environment variable ${CRUSH_CONTEXT}.
         // the value of ${CRUSH_CONTEXT}, if it is defined, is authoritative; all other search
         // paths are merely fallbacks if ${CRUSH_CONTEXT} is not set
 #ifdef __GNUC__
-        context_path = secure_getenv(CRUSH_CONTEXT_VARNAME);
+        context_root = secure_getenv(CRUSH_CONTEXT_VARNAME);
 #else
-        context_path = getenv(CRUSH_CONTEXT_VARNAME);
+        context_root = getenv(CRUSH_CONTEXT_VARNAME);
 #endif
-        if(context_path) {
-                light_info("${CRUSH_CONTEXT} is set to '%s'", context_path);
-                context_path = realpath(context_path, NULL);
-                root_file_path = crush_path_join(context_path, CRUSH_CONTEXT_ROOT_JSON_FILE);
+        if(context_root) {
+                light_info("${CRUSH_CONTEXT} is set to '%s'", context_root);
+                context_root = realpath(context_root, NULL);
+                context_path = crush_path_join(context_root, DOTCRUSH);
+                light_free(context_root);
+                context_file_path = crush_path_join(context_path, CRUSH_CONTEXT_JSON_FILE);
                 light_free(context_path);
-                succeeded = crush_context_try_load_from_path(root_file_path, context);
+                succeeded = crush_context_try_load_from_path(context_file_path, context);
                 if(!succeeded)
                         light_fatal("${CRUSH_CONTEXT} environment variable does not point to a valid crush context (%s)", context_path);
-                light_free(root_file_path);
+                light_free(context_file_path);
                 return context;
         } else {
                 light_debug("${CRUSH_CONTEXT} environment variable not set");
         }
         // second, we search for a context under the current working directory
-        context_path = CRUSH_CONTEXT_PATH_LOCAL;
+        context_root = CRUSH_CONTEXT_PATH_LOCAL;
+        context_path = crush_path_join(context_root, DOTCRUSH);
         succeeded = crush_context_try_load_from_path(context_path, context);
         if(!succeeded) {
         // finally, we look for the default context located in user home
-                context_path = light_platform_get_user_home();
-                //context_path = realpath(context_path, NULL);
-                //root_file_path = crush_path_join(context_path, CRUSH_CONTEXT_ROOT_JSON_FILE);
-                //light_free(context_path);
+                context_root = light_platform_get_user_home();
+                light_free(context_path);
+                context_path = crush_path_join(context_root, DOTCRUSH);
                 succeeded = crush_context_try_load_from_path(context_path, context);
-                //light_free(root_file_path);
         }
         if(!succeeded) {
                 light_info("crush context not found, creating default context under user home");
-                crush_context_create_under_path(context_path, context);
+                crush_context_create_under_path(light_platform_get_user_home(), context);
         }
+        light_free(context_path);
         return context;
 }
-#define CRUSH_CONTEXT_DIR_NAME                  ".crush"
-#define CRUSH_CONTEXT_JSON_FILE                 "context.json"
 
 // at this stage, we test for the existence of a context by verifying that we can open a handle to
 // ${context}/context.json; if the json file does not contain a well-formed crush context, this is
@@ -174,24 +177,26 @@ void crush_context_create_under_path(uint8_t *path, struct crush_context *contex
         }
         light_free(root_path);
         
-        json_t *loader_entry = json_pack("n");
+        json_t *loader_set = json_object();
         for(uint8_t i = 0; i < next_loader; i++) {
-                if(i == 0) loader_entry = json_pack("s:s", loader[i].name, loader[i].filename);
-                else loader_entry = json_pack("o,s:s", loader_entry, loader[i].name, loader[i].filename);
+                uint8_t result = json_object_set_new(loader_set, loader[i].name, json_string(loader[i].filename));
         }
-        uint8_t *ctx_file_path = crush_path_join(ctx_dir_path, CRUSH_CONTEXT_JSON_FILE);
+        uint8_t *ctx_file_path = crush_path_join(ctx_dir_path, JSON_FILE);
+        int ctx_file_handle = creat(ctx_file_path, (S_IRWXU | S_IRGRP | S_IROTH));
         json_t *context_obj = json_pack(
                 "{"
                         "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:context",
-                        "s:{o}"                 // "contextObjects"     "{ &loader_entry }"
+                        "s:s,"                  // "type":              OBJECT_NAME,
+                        "s:o"                   // "contextObjects:"    "loader_set"
                 "}",
-                "version", SCHEMA_VERSION, "type", "crush:context", "contextObjects", loader_entry);
-        json_dump_file(context_obj, ctx_file_path, JSON_INDENT(8) | JSON_ENSURE_ASCII);
+                "version", SCHEMA_VERSION, "type", OBJECT_NAME, "contextObjects", loader_set);
+        json_dumpfd(context_obj, ctx_file_handle, JSON_INDENT(8) | JSON_ENSURE_ASCII);
+        // because only animals don't leave a newline at the end of the file'p;[[mnnnnnnnnnnnnb ]]
+        write(ctx_file_handle, "\n", 1);
         json_decref(context_obj);
         light_free(ctx_file_path);
 
-        free(ctx_dir_path);
+        light_free(ctx_dir_path);
         return;
 
 _error:

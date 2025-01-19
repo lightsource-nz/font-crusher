@@ -28,7 +28,7 @@ Light_Command_Define(cmd_crush_display_import, &cmd_crush_display, COMMAND_DISPL
 Light_Command_Define(cmd_crush_display_info, &cmd_crush_display, COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info, 1, 1);
 Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info, 1, 1);
 
-uint8_t crush_display_init(struct light_command *cmd_parent)
+uint8_t crush_display_init()
 {
         crush_common_register_context_object_loader(CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, CRUSH_DISPLAY_CONTEXT_JSON_FILE,
                                         crush_display_create_context, crush_display_load_context);

@@ -8,8 +8,7 @@
 
 static void _event_load(const struct light_module *module)
 {
-        crush_common_register_context_object_loader("crush:display", "display.json",
-                                        crush_display_create_context, crush_display_load_context);
+        crush_display_init();
 }
 static void _event_unload(const struct light_module *module)
 {

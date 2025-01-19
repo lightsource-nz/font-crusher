@@ -24,11 +24,13 @@
 
 #define CRUSH_CONTEXT_JSON_SCHEMA_VERSION       0
 // TODO make sure hardcoded paths work on wind cows etc
-#define DOTCRUSH                        ".crush"
-#define CRUSH_CONTEXT_PATH_LOCAL        "."
-#define CRUSH_CONTEXT_PATH_DEFAULT      "~"
-#define CRUSH_CONTEXT_ROOT_JSON_FILE    "context.json"
-#define CRUSH_CONTEXT_OBJECTS_MAX       16
+#define DOTCRUSH                                ".crush"
+#define CRUSH_CONTEXT_PATH_LOCAL                "."
+#define CRUSH_CONTEXT_PATH_DEFAULT              "~"
+#define CRUSH_CONTEXT_DIR_NAME                  DOTCRUSH
+#define CRUSH_CONTEXT_OBJECT_NAME               "crush:context"
+#define CRUSH_CONTEXT_JSON_FILE                 "context.json"
+#define CRUSH_CONTEXT_OBJECTS_MAX               16
 
 struct crush_context_object {
         uint8_t *name;

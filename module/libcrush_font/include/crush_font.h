@@ -27,7 +27,7 @@ struct crush_font_context {
         struct crush_json data;
 };
 
-extern uint8_t crush_font_init(struct light_command *cmd_parent);
+extern uint8_t crush_font_init();
 extern struct crush_json crush_font_create_context();
 extern void crush_font_load_context(struct crush_context *context, struct crush_json data);
 extern struct crush_font *crush_font_context_get(struct crush_font_context *context);

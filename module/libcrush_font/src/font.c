@@ -30,7 +30,7 @@ Light_Command_Define(cmd_crush_font_remove, &cmd_crush_font, COMMAND_FONT_REMOVE
 Light_Command_Define(cmd_crush_font_info, &cmd_crush_font, COMMAND_FONT_INFO_NAME, COMMAND_FONT_INFO_DESCRIPTION, do_cmd_font_info, 1, 1);
 Light_Command_Define(cmd_crush_font_list, &cmd_crush_font, COMMAND_FONT_LIST_NAME, COMMAND_FONT_LIST_DESCRIPTION, do_cmd_font_list, 0, 0);
 
-uint8_t crush_font_init(struct light_command *cmd_parent)
+uint8_t crush_font_init()
 {
         crush_common_register_context_object_loader(CRUSH_FONT_CONTEXT_OBJECT_NAME, CRUSH_FONT_CONTEXT_JSON_FILE,
                                         crush_font_create_context, crush_font_load_context);
