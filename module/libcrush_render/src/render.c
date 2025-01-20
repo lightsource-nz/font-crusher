@@ -33,9 +33,14 @@ static void print_usage_render_new();
 static void print_usage_render_info();
 static void print_usage_render_list();
 
+#define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
+#define OBJECT_NAME CRUSH_RENDER_CONTEXT_OBJECT_NAME
+
 struct crush_render_context {
+        const struct crush_context *root;
+        const uint8_t *file_path;
         uint16_t version;
-        struct crush_json data;
+        crush_json_t data;
 };
 
 static FT_Library freetype;
@@ -54,9 +59,8 @@ uint8_t crush_render_init(struct light_command *cmd_parent)
 {
         return CODE_OK;
 }
-struct crush_json crush_render_create_context(uint8_t *path)
+crush_json_t *crush_render_create_context(uint8_t *path)
 {
-        uint8_t *render_json_file = crush_path_join(path, "render.json");
         json_t *render_obj = json_pack(
                 "{"
                         "s:i,"                  // "version":           SCHEMA_VERSION,
@@ -64,15 +68,8 @@ struct crush_json crush_render_create_context(uint8_t *path)
                         "s:[]"                   // "contextRenders"
                 "}",
                 "version", CRUSH_CONTEXT_JSON_SCHEMA_VERSION, "type", CRUSH_RENDER_CONTEXT_OBJECT_NAME, "contextRenders");
-        
-        json_dump_file(render_obj, render_json_file, JSON_INDENT(8) | JSON_ENSURE_ASCII);
-        light_free(render_json_file);
-        uint8_t *render_dir = crush_path_join(path, "render");
-        if(mkdir(render_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) {
-                light_fatal("could not create context module directory at path '%s', mkdir() error code '0x%x'", render_dir, errno);
-        }
-        light_free(render_dir);
-        return (struct crush_json) { render_obj };
+
+        return render_obj;
 }
 void crush_render_object_create()
 {
@@ -85,19 +82,24 @@ void crush_render_object_create()
                                         "s:[]"          //      "dependencies"
                                 "}";
 }
-void crush_render_load_context(struct crush_context *context, struct crush_json data)
+void crush_render_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data)
 {
         uint8_t *type;
         struct crush_render_context *render_ctx = light_alloc(sizeof(struct crush_render_context));
+        render_ctx->root = context;
+        render_ctx->file_path = file_path;
         json_unpack(
-                data.target,
+                data,
                 "{"
                         "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:module",
-                        "s:o"                   // "contextModules"
+                        "s:s,"                  // "type":              "crush:render",
+                        "s:o"                   // "contextRenders"
                 "}",
                 "version", &render_ctx->version, "type", &type,
-                "contextModules", &render_ctx->data);
+                "contextRenders", &render_ctx->data);
+        if(!strcmp(type, OBJECT_NAME)) {
+                light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
+        }
         crush_context_add_context_object(context, CRUSH_MODULE_CONTEXT_OBJECT_NAME, render_ctx);
 }
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)

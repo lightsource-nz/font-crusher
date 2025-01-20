@@ -24,16 +24,19 @@ struct crush_font {
 
 struct crush_font_context {
         struct crush_context *root;
-        struct crush_json data;
+        uint16_t version;
+        const uint8_t *file_path;
+        crush_json_t *data;
 };
 
 extern uint8_t crush_font_init();
-extern struct crush_json crush_font_create_context();
-extern void crush_font_load_context(struct crush_context *context, struct crush_json data);
-extern struct crush_font *crush_font_context_get(struct crush_font_context *context);
-extern uint8_t crush_font_context_save(struct crush_font_context *context, struct crush_font *font);
-extern struct crush_json crush_font_object_serialize(struct crush_font *font);
-extern struct crush_font *crush_font_object_deserialize(struct crush_json data);
+extern crush_json_t *crush_font_create_context();
+extern void crush_font_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
+extern struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint8_t *id);
+extern uint8_t crush_font_context_save(struct crush_font_context *context, const uint8_t *id, struct crush_font *font);
+extern uint8_t crush_font_context_commit(struct crush_font_context *context);
+extern crush_json_t *crush_font_object_serialize(struct crush_font *font);
+extern struct crush_font *crush_font_object_deserialize(crush_json_t *data);
 
 extern struct light_command *crush_font_get_command();
 extern struct light_command *crush_font_get_subcommand_add();

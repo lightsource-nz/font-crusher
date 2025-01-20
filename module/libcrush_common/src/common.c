@@ -16,10 +16,10 @@
 #define LOADER_MAX              16
 
 struct object_loader {
-        uint8_t *name;
-        uint8_t *filename;
-        struct crush_json (*create)();
-        void (*load)(struct crush_context *, struct crush_json);
+        const uint8_t *name;
+        const uint8_t *filename;
+        crush_json_t *(*create)();
+        void (*load)(struct crush_context *, const uint8_t *, crush_json_t *);
 };
 
 // alias long constant names with shorter local ones
@@ -45,7 +45,7 @@ void crush_common_load_context()
         crush_load_context_from_filesystem(root_context);
         current_context = root_context;
 }
-void crush_common_register_context_object_loader(uint8_t *name, uint8_t *filename, struct crush_json (*create)(uint8_t *), void (*load)(struct crush_context *, struct crush_json))
+void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(uint8_t *), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *))
 {
         if(next_loader > LOADER_MAX) {
                 light_fatal("could not register loader '%s', maximum number of object loaders reached (%i)", name, LOADER_MAX);
@@ -122,7 +122,7 @@ bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *conte
                 goto _error;
         }
         json_error_t err;
-        struct crush_json context_root_json = { json_loadf(ctx_file, 0, &err) };
+        crush_json_t *context_root_json = json_loadf(ctx_file, 0, &err);
         fclose(ctx_file);
         light_free(ctx_file_path);
 
@@ -132,7 +132,7 @@ bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *conte
         context->parent = current_context;
         for(uint8_t i = 0; i < next_loader; i++) {
                 const uint8_t *object_file;
-                if( 0 != json_unpack(context_root_json.target,
+                if( 0 != json_unpack(context_root_json,
                                 "{s:{s:s}}", "contextObjects", loader[i].name, &object_file)) {
                         light_debug("context object loader for object type '%s' did not find object storage filename", loader[i].name);
                         continue;
@@ -140,17 +140,17 @@ bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *conte
                 json_error_t err;
                 // NOTE the receiving object loader becomes the owner of the json object and is responsible
                 // for de-referencing it when it is no longer needed
-                struct crush_json object_json = { json_load_file(object_file, JSON_INDENT(8) | JSON_ENSURE_ASCII, &err) };
-                if(!object_json.target) {
+                crush_json_t *object_json = json_load_file(object_file, JSON_INDENT(8) | JSON_ENSURE_ASCII, &err);
+                if(!object_json) {
                         light_warn("context object loader for object type '%s' failed to load object storage file '%s'", loader[i].name, object_file);
                         continue;
                 }
-                loader[i].load(context, object_json);
+                loader[i].load(context, object_file, object_json);
         }
         current_context = context;
         
         // before return we should release the in-memory JSON object structure
-        json_decref(context_root_json.target);
+        json_decref(context_root_json);
         return true;
 _error:
         // failure to find a context is not strictly an error, so just return false
@@ -180,6 +180,13 @@ void crush_context_create_under_path(uint8_t *path, struct crush_context *contex
         json_t *loader_set = json_object();
         for(uint8_t i = 0; i < next_loader; i++) {
                 uint8_t result = json_object_set_new(loader_set, loader[i].name, json_string(loader[i].filename));
+                crush_json_t *json = loader[i].create();
+                uint8_t *obj_file_path = crush_path_join(ctx_dir_path, loader[i].filename);
+                light_debug("writing context object store '%s'", obj_file_path);
+                int obj_file_handle = creat(obj_file_path, (S_IRWXU | S_IRGRP | S_IROTH));
+                json_dumpfd(json, obj_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
+                write(obj_file_handle, "\n", 1);
+                close(obj_file_handle);
         }
         uint8_t *ctx_file_path = crush_path_join(ctx_dir_path, JSON_FILE);
         int ctx_file_handle = creat(ctx_file_path, (S_IRWXU | S_IRGRP | S_IROTH));
@@ -190,9 +197,10 @@ void crush_context_create_under_path(uint8_t *path, struct crush_context *contex
                         "s:o"                   // "contextObjects:"    "loader_set"
                 "}",
                 "version", SCHEMA_VERSION, "type", OBJECT_NAME, "contextObjects", loader_set);
-        json_dumpfd(context_obj, ctx_file_handle, JSON_INDENT(8) | JSON_ENSURE_ASCII);
+        json_dumpfd(context_obj, ctx_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
         // because only animals don't leave a newline at the end of the file'p;[[mnnnnnnnnnnnnb ]]
         write(ctx_file_handle, "\n", 1);
+        close(ctx_file_handle);
         json_decref(context_obj);
         light_free(ctx_file_path);
 

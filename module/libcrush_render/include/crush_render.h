@@ -13,8 +13,11 @@ struct crush_render {
 };
 
 extern uint8_t crush_render_init(struct light_command *cmd_parent);
-extern struct crush_json crush_render_create_context(uint8_t *path);
-extern void crush_render_load_context(struct crush_context *context, struct crush_json data);
+extern crush_json_t *crush_render_create_context(uint8_t *path);
+extern void crush_render_load_context(struct crush_context *context, const uint8_t *, crush_json_t *data);
+
+extern crush_json_t *crush_render_object_serialize(struct crush_render *font);
+extern struct crush_render *crush_render_object_deserialize(crush_json_t *data);
 
 extern struct light_command *crush_render_get_command();
 extern struct light_command *crush_render_get_subcommand_new();

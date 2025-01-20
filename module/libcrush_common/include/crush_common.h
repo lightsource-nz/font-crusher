@@ -5,10 +5,12 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <limits.h>
 
 #include <light.h>
 
-#include <limits.h>
+#include <jansson.h>
+
 // NOTE we need to enforce a hard limit on path length for security reasons, but the
 // exact value of that limit is less crucial. Most platforms can simply use the
 // limit defined by POSIX as PATH_MAX, otherwise use the default value of 4k
@@ -34,6 +36,7 @@
 
 struct crush_context_object {
         uint8_t *name;
+        uint8_t *filename;
         void *object;
 };
 struct crush_context {
@@ -44,15 +47,13 @@ struct crush_context {
         struct crush_context_object object[CRUSH_CONTEXT_OBJECTS_MAX];
 };
 
-struct crush_json {
-        void *target;
-};
+typedef json_t crush_json_t;
 
 // called automatically by light framework at module load-time
 extern void crush_common_init();
 // called automatically by light framework after all modules are loaded
 extern void crush_common_load_context();
-extern void crush_common_register_context_object_loader(uint8_t *name, uint8_t *filename, struct crush_json (*create)(), void (*load)(struct crush_context *, struct crush_json));
+extern void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *));
 // crush application context API
 extern bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *context);
 extern void crush_context_create_under_path(uint8_t *path, struct crush_context *context);
