@@ -96,6 +96,24 @@ struct crush_display *crush_display_context_get(struct crush_display_context *co
         display->ppi_v = ppi_v;
         return display;
 }
+uint8_t crush_display_context_save(struct crush_display_context *context, const uint8_t *id, struct crush_display *object)
+{
+        
+}
+uint8_t crush_display_context_commit(struct crush_display_context *context)
+{
+
+}
+
+crush_json_t *crush_display_object_serialize(struct crush_display *font)
+{
+
+}
+struct crush_display *crush_display_object_deserialize(crush_json_t *data)
+{
+
+}
+
 struct light_command *crush_display_get_command()
 {
         return cmd_display;

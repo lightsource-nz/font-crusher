@@ -73,8 +73,7 @@ struct crush_font *crush_font_context_get(struct crush_font_context *context, co
 }
 uint8_t crush_font_context_save(struct crush_font_context *context, const uint8_t *id, struct crush_font *font)
 {
-        crush_json_t *font_json = json_pack("{s:o}", id, crush_font_object_serialize(font));
-        return 0;
+        return json_object_set_new(context->data, id, json_pack("{s:o}", id, crush_font_object_serialize(font)));
 }
 uint8_t crush_font_context_commit(struct crush_font_context *context)
 {
@@ -95,7 +94,7 @@ crush_json_t *crush_font_object_serialize(struct crush_font *font)
 {
         json_t *files = json_array();
         for(uint8_t i = 0; i < font->file_count; i++) {
-                json_array_append(files, json_string(font->file[i]));
+                json_array_append_new(files, json_string(font->file[i]));
         }
         json_t *obj = json_pack(
                 "{"
@@ -103,7 +102,7 @@ crush_json_t *crush_font_object_serialize(struct crush_font *font)
                         "s:s"           //      "source_uri":           "git:https//github.com/org/font_name"
                         "s:s,"          //      "version_string":       "0.1.0"
                         "s:s"           //      "mod_root":             "modules/crush.core"
-                        "s:o"           //      "files":
+                        "s:O"           //      "files":
                 "}",
                 "name",         font->name,
                 "source_url",   font->source_url,
@@ -122,16 +121,16 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
         json_unpack(data, 
                 "{"
                         "s:s,"          //      "name":                 "font_creator.sans_helvetica"
-                        "s:s,"          //      "source_url"            "git:https//github.com/font_creator/sans_helvetica"
+                        "s:s,"          //      "source_url"            "git:https://github.com/font_creator/sans_helvetica"
                         "s:s,"          //      "font_type"             "crush:font:opentype"
                         "s:s,"          //      "font_version"          "[git commit hash]"
                         "s:s,"          //      "font_root"             "font/font_creator.sans_helvetica"
-                        "s:o"           //      "files"
+                        "s:O"           //      "files"
                 "}",
                 "name",         &font->name,
                 "source_url",   &font->source_url,
                 "font_type",    &font->font_type,
-                "font_type",    &font->font_version,
+                "font_version", &font->font_version,
                 "font_root",    &font->path,
                 "files",        &files_data
         );
@@ -140,6 +139,9 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
         json_array_foreach(files_data, i, file_value) {
                 json_unpack(file_value, "s", &font->file[i]);
         }
+        json_decref(data);
+
+        return font;
 }
 
 struct light_command *crush_font_get_command()

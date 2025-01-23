@@ -1,5 +1,7 @@
 #include <crush.h>
 
+#include <unistd.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <freetype2/ft2build.h>
@@ -36,12 +38,8 @@ static void print_usage_render_list();
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_RENDER_CONTEXT_OBJECT_NAME
 
-struct crush_render_context {
-        const struct crush_context *root;
-        const uint8_t *file_path;
-        uint16_t version;
-        crush_json_t data;
-};
+#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:O}"
+#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:[]}"
 
 static FT_Library freetype;
 
@@ -65,22 +63,11 @@ crush_json_t *crush_render_create_context(uint8_t *path)
                 "{"
                         "s:i,"                  // "version":           SCHEMA_VERSION,
                         "s:s,"                  // "type":              "crush:render",
-                        "s:[]"                   // "contextRenders"
+                        "s:[]"                  // "contextRenders"
                 "}",
-                "version", CRUSH_CONTEXT_JSON_SCHEMA_VERSION, "type", CRUSH_RENDER_CONTEXT_OBJECT_NAME, "contextRenders");
+                "version", SCHEMA_VERSION, "type", OBJECT_NAME, "contextRenders");
 
         return render_obj;
-}
-void crush_render_object_create()
-{
-        
-                                "{"
-                                        "s:s,"          //      "name":                 "font_creator.core"
-                                        "s:i,"          //      "version_seq"           "0"
-                                        "s:s,"          //      "version_string"        "0.1.0"
-                                        "s:s"           //      "mod_root"              "modules/crush.core"
-                                        "s:[]"          //      "dependencies"
-                                "}";
 }
 void crush_render_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data)
 {
@@ -93,15 +80,69 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
                 "{"
                         "s:i,"                  // "version":           SCHEMA_VERSION,
                         "s:s,"                  // "type":              "crush:render",
-                        "s:o"                   // "contextRenders"
+                        "s:O"                   // "contextRenders"
                 "}",
                 "version", &render_ctx->version, "type", &type,
                 "contextRenders", &render_ctx->data);
+        json_decref(data);
         if(!strcmp(type, OBJECT_NAME)) {
                 light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
         }
         crush_context_add_context_object(context, CRUSH_MODULE_CONTEXT_OBJECT_NAME, render_ctx);
 }
+struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint8_t *id)
+{
+        crush_json_t *obj_data = json_object_get(context->data, id);
+        struct crush_font *result = crush_render_object_deserialize(obj_data);
+        json_decref(obj_data);
+        return result;
+}
+uint8_t crush_render_context_save(struct crush_render_context *context, const uint8_t *id, struct crush_render *object)
+{
+        return json_object_set_new(context->data, id, crush_font_object_serialize(object));
+}
+uint8_t crush_render_context_commit(struct crush_render_context *context)
+{       
+        json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT,
+                                        "version",              context->version,
+                                        "type",                 CRUSH_FONT_CONTEXT_OBJECT_NAME,
+                                        "contextRenders",       context->data);
+        int obj_file_handle = open(context->file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));
+        json_dumpfd(obj_data, obj_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
+        json_decref(obj_data);
+        write(obj_file_handle, "\n", 1);
+        close(obj_file_handle);
+
+        return 0;
+}
+
+crush_json_t *crush_render_object_serialize(struct crush_render *object)
+{
+        json_t *data = json_pack(
+                "{"
+                        "s:s,"          //      "name": "render:sans_helvetica/$disp/$version"
+                        "s:s,"          //      "path": "data/render/sans_helvetica/$disp/$version"
+                "}",
+                "name",         object->name,
+                "path",         object->path
+                );
+        return data;
+}
+struct crush_render *crush_render_object_deserialize(crush_json_t *data)
+{
+        struct crush_render *object = light_alloc(sizeof(struct crush_render));
+        json_unpack(data, 
+                "{"
+                        "s:s,"          //      "name":                 "crush:render:$id"
+                        "s:s,"          //      "path":                 "$context/data/render/$id"
+                "}",
+                "name",         &object->name,
+                "path",         &object->path
+        );
+        json_decref(data);
+        return object;
+}
+
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)
 {
         print_usage_render();
