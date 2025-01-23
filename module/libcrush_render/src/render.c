@@ -93,13 +93,13 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
 struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint8_t *id)
 {
         crush_json_t *obj_data = json_object_get(context->data, id);
-        struct crush_font *result = crush_render_object_deserialize(obj_data);
+        struct crush_render *result = crush_render_object_deserialize(obj_data);
         json_decref(obj_data);
         return result;
 }
 uint8_t crush_render_context_save(struct crush_render_context *context, const uint8_t *id, struct crush_render *object)
 {
-        return json_object_set_new(context->data, id, crush_font_object_serialize(object));
+        return json_object_set_new(context->data, id, crush_render_object_serialize(object));
 }
 uint8_t crush_render_context_commit(struct crush_render_context *context)
 {       
