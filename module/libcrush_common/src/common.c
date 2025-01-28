@@ -42,8 +42,7 @@ void crush_common_init()
 }
 void crush_common_load_context()
 {
-        crush_load_context_from_filesystem(root_context);
-        current_context = root_context;
+        current_context = root_context = crush_load_context_from_filesystem(root_context);
 }
 void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(uint8_t *), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *))
 {
@@ -51,6 +50,18 @@ void crush_common_register_context_object_loader(const uint8_t *name, const uint
                 light_fatal("could not register loader '%s', maximum number of object loaders reached (%i)", name, LOADER_MAX);
         }
         loader[next_loader++]= (struct object_loader) {.name = name, .filename = filename, .create = create, .load = load};
+}
+uint32_t crush_common_get_initial_counter_value()
+{
+        return rand() % (CRUSH_JSON_LPRIME + 1);
+}
+uint32_t crush_common_get_next_counter_value(uint32_t value)
+{
+        return (value + CRUSH_JSON_INCREMENT) % CRUSH_JSON_LPRIME;
+}
+struct crush_context *crush_context()
+{
+        return current_context;
 }
 // -- context loader routine
 // 1: locate context root by attempting to load 'context.json' from different paths
@@ -66,9 +77,9 @@ static struct crush_context *crush_load_context_from_filesystem(struct crush_con
         // the value of ${CRUSH_CONTEXT}, if it is defined, is authoritative; all other search
         // paths are merely fallbacks if ${CRUSH_CONTEXT} is not set
 #ifdef __GNUC__
-        context_root = secure_getenv(CRUSH_CONTEXT_VARNAME);
+        context_root = secure_getenv(CRUSH_EV_CONTEXT);
 #else
-        context_root = getenv(CRUSH_CONTEXT_VARNAME);
+        context_root = getenv(CRUSH_EV_CONTEXT);
 #endif
         if(context_root) {
                 light_info("${CRUSH_CONTEXT} is set to '%s'", context_root);
@@ -189,7 +200,7 @@ void crush_context_create_under_path(uint8_t *path, struct crush_context *contex
                 close(obj_file_handle);
         }
         uint8_t *ctx_file_path = crush_path_join(ctx_dir_path, JSON_FILE);
-        int ctx_file_handle = creat(ctx_file_path, (S_IRWXU | S_IRGRP | S_IROTH));
+        int ctx_file_handle = open(ctx_file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));
         json_t *context_obj = json_pack(
                 "{"
                         "s:i,"                  // "version":           SCHEMA_VERSION,
@@ -217,11 +228,20 @@ void crush_context_add_context_object(struct crush_context *context, uint8_t *na
         cco->name = name;
         cco->object = object;
 }
+void *crush_context_get_context_object(struct crush_context *context, uint8_t *name)
+{
+        for(uint8_t i = 0; i < context->object_count; i++) {
+                if(strcmp(context->object[i].name, name)) {
+                        return context->object[i].object;
+                }
+        }
+        return NULL;
+}
 // NOTE this routine assumes that all input paths are normalized, and path0 specifically is
 // the path to a directory with no trailing path separator
 // NOTE this routine allocates heap memory for the combined path, and the caller is 
 // responsible for making sure it is freed
-uint8_t *crush_path_join(uint8_t *path0, uint8_t *path1)
+uint8_t *crush_path_join(const uint8_t *path0, const uint8_t *path1)
 {
         // len(out) == len(p0) + '/' + len(p1) + '\0'
         //          == len(p0+p1) + 2

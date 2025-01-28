@@ -46,6 +46,14 @@ uint8_t crush_font_init()
                                         crush_font_create_context, crush_font_load_context);
         return LIGHT_OK;
 }
+struct crush_font_context *crush_font_context()
+{
+        return crush_font_get_context(crush_context());
+}
+struct crush_font_context *crush_font_get_context(struct crush_context *root)
+{
+        return crush_context_get_context_object_type(root, OBJECT_NAME, struct crush_font_context *);
+}
 crush_json_t *crush_font_create_context()
 {
         return json_pack(CONTEXT_OBJECT_NEW_FMT, "version", SCHEMA_VERSION, "type", OBJECT_NAME, "contextFonts");
@@ -65,8 +73,7 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
 
 struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint8_t *id)
 {
-        crush_json_t *obj_data;
-        json_unpack(context->data, "{s:{s:o}}", "contextFonts", id, &obj_data);
+        crush_json_t *obj_data = json_object_get(context->data, id);
         struct crush_font *result = crush_font_object_deserialize(obj_data);
         json_decref(obj_data);
         return result;

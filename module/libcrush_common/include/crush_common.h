@@ -20,7 +20,14 @@
 #       define CRUSH_MAX_PATH_LENGTH            4096
 #endif
 
-#define CRUSH_CONTEXT_VARNAME "CRUSH_CONTEXT"
+#define CRUSH_JSON_LPRIME                       3751146389
+#define CRUSH_JSON_INCREMENT                    (INT_MAX - CRUSH_JSON_LPRIME)
+// object IDs are a hex conversion of a 32-bit counter value, 8 byte fixed-length strings
+#define CRUSH_JSON_KEY_LENGTH                   8
+
+#define CRUSH_EV_CONTEXT                        "CRUSH_CONTEXT"
+#define CRUSH_EV_FONT                           "CRUSH_FONT"
+#define CRUSH_EV_DISPLAY                        "CRUSH_DISPLAY"
 
 #define Crush_Path_Join_Static(path0, path1) path0 "/" path1
 
@@ -54,13 +61,16 @@ extern void crush_common_init();
 // called automatically by light framework after all modules are loaded
 extern void crush_common_load_context();
 extern void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *));
+extern uint32_t crush_common_get_initial_counter_value();
+uint32_t crush_common_get_next_counter_value(uint32_t value);
 // crush application context API
+extern struct crush_context *crush_context();
 extern bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *context);
 extern void crush_context_create_under_path(uint8_t *path, struct crush_context *context);
 extern void crush_context_add_context_object(struct crush_context *context, uint8_t *name, void *object);
 extern void *crush_context_get_context_object(struct crush_context *context, uint8_t *name);
 // filesystem paths API
-extern uint8_t *crush_path_join(uint8_t *path0, uint8_t *path1);
+extern uint8_t *crush_path_join(const uint8_t *path0, const uint8_t *path1);
 // NOTE the caller must always ensure that n is equal to the number of variadic arguments
 // passed to the function, or bad things will happen
 extern uint8_t *crush_path_join_n(uint8_t n, ...);

@@ -29,13 +29,19 @@ struct crush_display_context {
 };
 
 extern uint8_t crush_display_init();
+extern struct crush_display_context *crush_display_context();
+extern struct crush_display_context *crush_display_get_context(struct crush_context *root);
 extern crush_json_t *crush_display_create_context();
 extern void crush_display_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *json);
 extern struct crush_display *crush_display_context_get(struct crush_display_context *context, const uint8_t *id);
+static inline struct crush_display *crush_display_get(const uint8_t *id)
+{
+        return crush_display_context_get(crush_display_context(), id);
+}
 extern uint8_t crush_display_context_save(struct crush_display_context *context, const uint8_t *id, struct crush_display *object);
 extern uint8_t crush_display_context_commit(struct crush_display_context *context);
 
-extern crush_json_t *crush_display_object_serialize(struct crush_display *font);
+extern crush_json_t *crush_display_object_serialize(struct crush_display *display);
 extern struct crush_display *crush_display_object_deserialize(crush_json_t *data);
 
 #define crush_display_get_context_object(_context) \
