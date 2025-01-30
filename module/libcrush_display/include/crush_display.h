@@ -10,6 +10,7 @@ Light_Command_Declare(cmd_crush_display_info, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_remove, cmd_crush_display);
 
 struct crush_display {
+        uint32_t id;
         uint8_t *name;
         uint8_t *description;
         uint16_t resolution_h;
@@ -25,6 +26,7 @@ struct crush_display_context {
         uint16_t version;
         crush_json_t *data;
         const uint8_t *file_path;
+        uint32_t next_id;
         struct crush_display *(*get)(uint8_t name);
 };
 
@@ -43,6 +45,9 @@ extern uint8_t crush_display_context_commit(struct crush_display_context *contex
 
 extern crush_json_t *crush_display_object_serialize(struct crush_display *display);
 extern struct crush_display *crush_display_object_deserialize(crush_json_t *data);
+
+extern uint32_t crush_display_get_id(struct crush_display *display);
+extern uint8_t *crush_display_get_name(struct crush_display *display);
 
 #define crush_display_get_context_object(_context) \
         crush_context_get_context_object_type(_context, CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, struct )

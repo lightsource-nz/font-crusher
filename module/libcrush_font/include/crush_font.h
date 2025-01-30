@@ -12,6 +12,7 @@ Light_Command_Declare(cmd_crush_font_list, cmd_crush_font);
 
 #define CRUSH_FONT_FILE_MAX                     8
 struct crush_font {
+        uint32_t id;
         struct crush_font_context *context;
         uint8_t *name;
         uint8_t *source_url;
@@ -26,6 +27,7 @@ struct crush_font_context {
         struct crush_context *root;
         uint16_t version;
         const uint8_t *file_path;
+        uint32_t next_id;
         crush_json_t *data;
 };
 
@@ -43,6 +45,9 @@ extern uint8_t crush_font_context_save(struct crush_font_context *context, const
 extern uint8_t crush_font_context_commit(struct crush_font_context *context);
 extern crush_json_t *crush_font_object_serialize(struct crush_font *font);
 extern struct crush_font *crush_font_object_deserialize(crush_json_t *data);
+
+extern uint32_t crush_font_get_id(struct crush_font *font);
+extern uint8_t *crush_font_get_name(struct crush_font *font);
 
 extern struct light_command *crush_font_get_command();
 extern struct light_command *crush_font_get_subcommand_add();

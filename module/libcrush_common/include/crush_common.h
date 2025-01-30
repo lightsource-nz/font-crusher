@@ -22,6 +22,11 @@
 
 #define CRUSH_JSON_LPRIME                       3751146389
 #define CRUSH_JSON_INCREMENT                    (INT_MAX - CRUSH_JSON_LPRIME)
+#define CRUSH_JSON_ID_NEW                       CRUSH_JSON_LPRIME
+#define ID_To_String(sym, id) \
+                uint8_t sym[CRUSH_JSON_KEY_LENGTH]; \
+                snprintf(id_str, CRUSH_JSON_KEY_LENGTH, "%8X", id);
+#define String_To_ID(string) strtoul(string, NULL, 16)
 // object IDs are a hex conversion of a 32-bit counter value, 8 byte fixed-length strings
 #define CRUSH_JSON_KEY_LENGTH                   8
 
@@ -56,13 +61,22 @@ struct crush_context {
 
 typedef json_t crush_json_t;
 
+#ifndef asprintf
+#define CRUSH_ASPRINTF
+int vasprintf(char **strp, const char *fmt, va_list ap);
+
+int asprintf(char **strp, const char *fmt, ...);
+#endif
+
 // called automatically by light framework at module load-time
 extern void crush_common_init();
 // called automatically by light framework after all modules are loaded
 extern void crush_common_load_context();
+
 extern void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *));
 extern uint32_t crush_common_get_initial_counter_value();
-uint32_t crush_common_get_next_counter_value(uint32_t value);
+extern uint32_t crush_common_get_next_counter_value(uint32_t value);
+extern uint8_t *crush_common_datetime_string();
 // crush application context API
 extern struct crush_context *crush_context();
 extern bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *context);

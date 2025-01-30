@@ -151,6 +151,16 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
         return font;
 }
 
+uint32_t crush_font_get_id(struct crush_font *font)
+{
+        return font->id;
+}
+
+uint8_t *crush_font_get_name(struct crush_font *font)
+{
+        return font->name;
+}
+
 struct light_command *crush_font_get_command()
 {
         return &cmd_crush_font;

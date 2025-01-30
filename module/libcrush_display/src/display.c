@@ -193,6 +193,15 @@ struct crush_display *crush_display_object_deserialize(crush_json_t *data)
         return out;
 }
 
+uint32_t crush_display_get_id(struct crush_display *display)
+{
+        return display->id;
+}
+uint8_t *crush_display_get_name(struct crush_display *display)
+{
+        return display->name;
+}
+
 struct light_command *crush_display_get_command()
 {
         return cmd_display;

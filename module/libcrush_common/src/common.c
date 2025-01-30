@@ -4,6 +4,8 @@
 #include <crush_common.h>
 #include <jansson.h>
 
+#include <time.h>
+
 #include <errno.h>
 #include <limits.h>
 #include <fcntl.h>
@@ -26,6 +28,49 @@ struct object_loader {
 #define SCHEMA_VERSION  CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME     CRUSH_CONTEXT_OBJECT_NAME
 #define JSON_FILE       CRUSH_CONTEXT_JSON_FILE
+
+#ifdef CRUSH_ASPRINTF
+int vasprintf(char **strp, const char *fmt, va_list ap)
+{
+        va_list ap1;
+        int len;
+        char *buffer;
+        int res;
+    
+        va_copy(ap1, ap);
+        len = vsnprintf(NULL, 0, fmt, ap1);
+    
+        if (len < 0)
+                return len;
+    
+        va_end(ap1);
+        buffer = light_alloc(len + 1);
+    
+        if (!buffer)
+                return -1;
+    
+        res = vsnprintf(buffer, len + 1, fmt, ap);
+    
+        if (res < 0)
+                light_free(buffer);
+        else
+                *strp = buffer;
+    
+        return res;
+}
+
+int asprintf(char **strp, const char *fmt, ...)
+{
+    int error;
+    va_list ap;
+
+    va_start(ap, fmt);
+    error = vasprintf(strp, fmt, ap);
+    va_end(ap);
+
+    return error;
+}
+#endif
 
 static struct object_loader loader[LOADER_MAX]; 
 static uint8_t next_loader;
@@ -58,6 +103,13 @@ uint32_t crush_common_get_initial_counter_value()
 uint32_t crush_common_get_next_counter_value(uint32_t value)
 {
         return (value + CRUSH_JSON_INCREMENT) % CRUSH_JSON_LPRIME;
+}
+#define DATE_STR_SIZE 18
+uint8_t *crush_common_datetime_string()
+{
+        uint8_t *out = light_alloc(DATE_STR_SIZE);
+        strftime(out, DATE_STR_SIZE, "%d/%m/%y-%X", localtime(time(NULL)));
+        return out;
 }
 struct crush_context *crush_context()
 {
