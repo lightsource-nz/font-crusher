@@ -11,6 +11,7 @@ target_sources(
         libcrush_common INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/src/module.c
         ${CMAKE_CURRENT_LIST_DIR}/src/common.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/queue.c
 )
 
 target_link_libraries(

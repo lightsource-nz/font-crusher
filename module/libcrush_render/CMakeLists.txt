@@ -15,7 +15,7 @@ target_sources(
 target_link_libraries(
         libcrush_render
         INTERFACE
+        crush_render_backend
         light_core
         light_cli
-        mod_freetype
 )

@@ -34,8 +34,8 @@ Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY
 #define OBJECT_NAME CRUSH_DISPLAY_CONTEXT_OBJECT_NAME
 #define JSON_FILE CRUSH_DISPLAY_CONTEXT_JSON_FILE
 
-#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:O}"
-#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:[]}"
+#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
+#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
 uint8_t crush_display_init()
 {
@@ -63,13 +63,10 @@ struct crush_display_context *crush_display_get_context(struct crush_context *ro
 crush_json_t *crush_display_create_context()
 {
         json_t *display_obj = json_pack(
-                "{"
-                        "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:display",
-                        "s:[]"                  // "contextDisplays"
-                "}",
+                CONTEXT_OBJECT_NEW_FMT,
                 "version",      SCHEMA_VERSION,
                 "type",         OBJECT_NAME,
+                "next_id",      crush_common_get_initial_counter_value(),
                 "contextDisplays");
                 return display_obj;
 }
@@ -80,45 +77,55 @@ void crush_display_load_context(struct crush_context *context, const uint8_t *fi
         display_context->root = context;
         display_context->file_path = file_path;
         json_unpack(json,
-                "{"
-                        "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:font",
-                        "s:o"                   // "contextFonts"
-                "}",
-                "version", &display_context->version, "type", &type,
+                CONTEXT_OBJECT_FMT,
+                "version", &display_context->version,
+                "type", &type,
+                "next_id", &display_context->next_id,
                 "contextFonts", &display_context->data);
         if(!strcmp(type, OBJECT_NAME)) {
                 light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
         }
         crush_context_add_context_object(context, OBJECT_NAME, (void *)display_context);
 }
-struct crush_display *crush_display_context_get(struct crush_display_context *context, const uint8_t *id)
+struct crush_display *crush_display_get_ctx(struct crush_display_context *context, uint32_t id)
 {
-        uint8_t *name, *description;
-        uint16_t res_h, res_v, ppi_h, ppi_v;
-        double height_mm, width_mm;
-        json_unpack(context->data, "{s:{s:{s:s,s?:s,s:s,s:s,s:s,s:s,s?:s,s?:s}}}", "displayObjects",
-                id, "name", &name, "description", &description, "res_h", &res_h, "res_v", &res_v,
-                "ppi_h", &ppi_h, "ppi_v", &ppi_v, "height_mm", &height_mm, "width_mm", &width_mm);
-        struct crush_display *display = light_alloc(sizeof(struct crush_display));
-        display->name = name;
-        display->description = description;
-        display->resolution_h = res_h;
-        display->resolution_v = res_v;
-        display->ppi_h = ppi_h;
-        display->ppi_v = ppi_v;
-        return display;
+        ID_To_String(id_str, id);
+        crush_json_t *obj_data = json_object_get(context->data, id_str);
+        struct crush_display *result = crush_display_object_deserialize(obj_data);
+        result->id = id;
+        json_decref(obj_data);
+        return result;
 }
-uint8_t crush_display_context_save(struct crush_display_context *context, const uint8_t *id, struct crush_display *object)
+struct crush_display *crush_display_find_ctx(struct crush_display_context *ctx, const uint8_t *name)
 {
-        return json_object_set_new(context->data, id, crush_display_object_serialize(object));
+        const uint8_t *_key;
+        json_t *_val;
+        // TODO place sync barriers around access to the object store
+        json_object_foreach(ctx->data, _key, _val) {
+                struct crush_display *display = crush_display_object_deserialize(_val);
+                if(strcmp(crush_display_get_name(display), name))
+                        return display;
+                crush_display_release(display);
+        }
+}
+uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object)
+{
+        if(object->id == CRUSH_JSON_ID_NEW) {
+                light_debug("saving new object, name: '%s'", object->name);
+        } else {
+                light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
+        }
+        ID_To_String(id_str, object->id);
+        return json_object_set_new(context->data, id_str, crush_display_object_serialize(object));
         
 }
 uint8_t crush_display_context_commit(struct crush_display_context *context)
 {
+        light_debug("saving context to file '%s'", context->file_path);
         json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT,
                                         "version",              context->version,
-                                        "type",                 CRUSH_FONT_CONTEXT_OBJECT_NAME,
+                                        "type",                 OBJECT_NAME,
+                                        "next_id",              context->next_id,
                                         "contextRenders",       context->data);
         int obj_file_handle = open(context->file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));
         json_dumpfd(obj_data, obj_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
@@ -191,6 +198,13 @@ struct crush_display *crush_display_object_deserialize(crush_json_t *data)
         struct crush_display *out = light_alloc(sizeof(struct crush_display));
         memcpy(out, &object, sizeof(struct crush_display));
         return out;
+}
+extern void crush_display_release(struct crush_display *display)
+{
+        if(display->json) {
+                json_decref(display->json);
+        }
+        light_free(display);
 }
 
 uint32_t crush_display_get_id(struct crush_display *display)

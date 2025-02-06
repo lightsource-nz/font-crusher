@@ -11,6 +11,14 @@
 
 #include <jansson.h>
 
+#include <threads.h>
+#include <stdatomic.h>
+
+#define CRUSH_OK                0
+#define CRUSH_ERR_QUEUE         1
+
+#include <crush_queue.h>
+
 // NOTE we need to enforce a hard limit on path length for security reasons, but the
 // exact value of that limit is less crucial. Most platforms can simply use the
 // limit defined by POSIX as PATH_MAX, otherwise use the default value of 4k

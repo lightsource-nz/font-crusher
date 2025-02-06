@@ -6,7 +6,6 @@
 #include <module/mod_crush_font.h>
 #include <module/mod_crush_module.h>
 #include <module/mod_crush_render.h>
-#include <module/mod_freetype.h>
 
 static void _event_load(const struct light_module *module)
 {

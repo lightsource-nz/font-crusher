@@ -1,21 +1,17 @@
 #include <light.h>
-#include <module/mod_crush_context.h>
-#include <module/mod_light_cli.h>
+#include <module/mod_freetype.h>
 #include <module/mod_crush_render_backend.h>
 
-#include <light_cli.h>
 #include <crush_common.h>
-#include <crush_render.h>
-
-#include "render_private.h"
+#include <crush_render_backend.h>
 
 static void _event_load(const struct light_module *module)
 {
-        crush_render_module_load();
+        render_backend_init();
 }
 static void _event_unload(const struct light_module *module)
 {
-        crush_render_module_unload();
+        render_backend_shutdown();
 }
 static void _module_event(const struct light_module *module, uint8_t event, void *arg)
 {
@@ -28,7 +24,6 @@ static void _module_event(const struct light_module *module, uint8_t event, void
                 break;
         }
 }
-Light_Module_Define(libcrush_render, _module_event,
-                                                &crush_render_backend,
-                                                &light_cli,
+Light_Module_Define(crush_render_backend, _module_event,
+                                                &mod_freetype,
                                                 &light_core);

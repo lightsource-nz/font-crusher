@@ -48,6 +48,9 @@ extern struct crush_font *crush_font_object_deserialize(crush_json_t *data);
 
 extern uint32_t crush_font_get_id(struct crush_font *font);
 extern uint8_t *crush_font_get_name(struct crush_font *font);
+// these accessors determine the specific font file and index used to render this font definition
+extern uint8_t *crush_font_get_target_file(struct crush_font *font);
+extern uint8_t crush_font_get_target_face_index(struct crush_font *font);
 
 extern struct light_command *crush_font_get_command();
 extern struct light_command *crush_font_get_subcommand_add();

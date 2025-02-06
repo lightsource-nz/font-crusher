@@ -108,7 +108,8 @@ uint32_t crush_common_get_next_counter_value(uint32_t value)
 uint8_t *crush_common_datetime_string()
 {
         uint8_t *out = light_alloc(DATE_STR_SIZE);
-        strftime(out, DATE_STR_SIZE, "%d/%m/%y-%X", localtime(time(NULL)));
+        time_t time_now = time(NULL);
+        strftime(out, DATE_STR_SIZE, "%d/%m/%y-%X", localtime(&time_now));
         return out;
 }
 struct crush_context *crush_context()

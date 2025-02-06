@@ -155,7 +155,15 @@ uint32_t crush_font_get_id(struct crush_font *font)
 {
         return font->id;
 }
-
+// TODO properly fill in these accessors which generate information required by the rendering engine
+uint8_t *crush_font_get_target_file(struct crush_font *font)
+{
+        return font->file[0];
+}
+uint8_t crush_font_get_target_face_index(struct crush_font *font)
+{
+        return 0;
+}
 uint8_t *crush_font_get_name(struct crush_font *font)
 {
         return font->name;

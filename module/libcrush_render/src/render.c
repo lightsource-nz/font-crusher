@@ -1,11 +1,10 @@
 #include <crush.h>
+#include <crush_render_backend.h>
 
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <freetype2/ft2build.h>
-#include <freetype/freetype.h>
 #include <jansson.h>
 
 #include "render_private.h"
@@ -50,17 +49,19 @@ static void print_usage_render_list();
 #define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
-static FT_Library freetype;
-
-void _render_load_event()
+void crush_render_module_load()
 {
-        int err;
-        if(err = FT_Init_FreeType(&freetype)) {
-                light_fatal("failed to initialise the freetype2 typesetting library: FT_Init_FreeType() returned value %d", err);
-        }
-        int major, minor, patch;
-        FT_Library_Version(freetype, &major, &minor, &patch);
-        light_debug("loaded freetype2 version %d.%d.%d", major, minor, patch);
+        render_backend_init();
+        crush_common_register_context_object_loader(CRUSH_RENDER_CONTEXT_OBJECT_NAME, CRUSH_RENDER_CONTEXT_JSON_FILE, 
+                                        crush_render_create_context, crush_render_load_context);
+}
+extern void crush_render_module_unload()
+{
+        light_debug("shutting down rendering pipeline...");
+        render_backend_shutdown();
+        light_debug("done shutting down render pipeline");
+        // commit all pending changes to object database
+        crush_render_context_commit(crush_render_context());
 }
 struct crush_render_context *crush_render_context()
 {
@@ -106,9 +107,10 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         }
         crush_context_add_context_object(context, CRUSH_MODULE_CONTEXT_OBJECT_NAME, render_ctx);
 }
-struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint8_t *id)
+struct crush_render *crush_render_context_get(struct crush_render_context *context, uint8_t id)
 {
-        crush_json_t *obj_data = json_object_get(context->data, id);
+        ID_To_String(id_str, id);
+        crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
         struct crush_render *result = crush_render_object_deserialize(obj_data);
         json_decref(obj_data);
         return result;
@@ -152,7 +154,7 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
                 "}",
                 "name",         object->name,
                 "font",         crush_font_get_id(object->font),
-                "display",      crush_display_get_id(object->font),
+                "display",      crush_display_get_id(object->display),
                 "path",         object->path
                 );
         return data;
@@ -181,10 +183,11 @@ void crush_render_init(struct crush_render *render, struct crush_font *font, uin
 {
         render->state = CRUSH_RENDER_STATE_NEW;
         render->id = CRUSH_JSON_LPRIME;
+        render->job_id = RENDER_JOB_NEW;
         render->font = font;
         render->display = display;
         uint8_t *time_str = crush_common_datetime_string();
-        char **name_char = &render->name;
+        char **name_char = (char **) &render->name;
         asprintf(name_char, "render:%s@%dpt-%s-%s",
                         crush_font_get_name(font), font_size, crush_display_get_name(display), time_str);
         light_free(time_str);
@@ -196,6 +199,10 @@ uint32_t crush_render_get_id(struct crush_render *render)
 uint8_t crush_render_get_state(struct crush_render *render)
 {
         return render->state;
+}
+uint8_t *crush_render_get_name(struct crush_render *render)
+{
+        return render->name;
 }
 struct crush_font *crush_render_get_font(struct crush_render *render)
 {
@@ -221,18 +228,21 @@ void crush_render_set_font_size(struct crush_render *render, uint8_t font_size)
 {
         render->font_size = font_size;
 }
-uint8_t crush_render_start_render_job(struct crush_render *render)
-{
-        light_info("rendering font face '%s' at %dpt for display '%s'", render->font->name, render->font_size, render->display->name);
-        render->state = CRUSH_RENDER_STATE_RUNNING;
-        FT_Face face;
-        FT_Error err = FT_New_Face(freetype, render->font->file[0], 0, &face);
-        err = FT_Set_Char_Size(face, 0, render->font_size, render->display->ppi_h, render->display->ppi_v);
 
+void crush_render_add_render_job(struct crush_render *render)
+{
+        uint8_t job = render_engine_create_render_job(render_engine_default(), render->font, render->font_size, render->display, render->path);
+        if(job != RENDER_JOB_ERR) {
+                light_info("rendering font face '%s' at %dpt for display '%s'", render->font->name, render->font_size, render->display->name);
+                render->job_id = job;
+        } else {
+                ID_To_String(id_str, render->id);
+                light_error("failed to queue render job '%s', object ID 0x%s", render->name, id_str);
+        }
 }
-uint8_t crush_render_stop_render_job(struct crush_render *render)
+void crush_render_cancel_render_job(struct crush_render *render)
 {
-
+        light_info("render job '%s' canceled", crush_render_get_name(render));
 }
 
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)
@@ -263,7 +273,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
                 light_error("command 'crush render new' called without setting either '--display' option or ${CRUSH_DISPLAY} environment variable");
                 return Result_Error;
         }
-        struct crush_display *display = crush_display_get(str_display);
+        struct crush_display *display = crush_display_find(str_display);
         if(!display) {
                 light_error("could not find display object with ID '%s'", str_display);
                 return Result_Error;

@@ -10,6 +10,7 @@ Light_Command_Declare(cmd_crush_display_info, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_remove, cmd_crush_display);
 
 struct crush_display {
+        crush_json_t *json;
         uint32_t id;
         uint8_t *name;
         uint8_t *description;
@@ -27,7 +28,6 @@ struct crush_display_context {
         crush_json_t *data;
         const uint8_t *file_path;
         uint32_t next_id;
-        struct crush_display *(*get)(uint8_t name);
 };
 
 extern uint8_t crush_display_init();
@@ -35,22 +35,28 @@ extern struct crush_display_context *crush_display_context();
 extern struct crush_display_context *crush_display_get_context(struct crush_context *root);
 extern crush_json_t *crush_display_create_context();
 extern void crush_display_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *json);
-extern struct crush_display *crush_display_context_get(struct crush_display_context *context, const uint8_t *id);
-static inline struct crush_display *crush_display_get(const uint8_t *id)
+extern struct crush_display *crush_display_get_ctx(struct crush_display_context *context, uint32_t id);
+static inline struct crush_display *crush_display_get(uint32_t id)
 {
-        return crush_display_context_get(crush_display_context(), id);
+        return crush_display_get_ctx(crush_display_context(), id);
 }
-extern uint8_t crush_display_context_save(struct crush_display_context *context, const uint8_t *id, struct crush_display *object);
+extern struct crush_display *crush_display_find_ctx(struct crush_display_context *ctx, const uint8_t *name);
+static inline struct crush_display *crush_display_find(const uint8_t *name)
+{
+        return crush_display_find_ctx(crush_display_context(), name);
+}
+extern uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object);
 extern uint8_t crush_display_context_commit(struct crush_display_context *context);
 
 extern crush_json_t *crush_display_object_serialize(struct crush_display *display);
 extern struct crush_display *crush_display_object_deserialize(crush_json_t *data);
+extern void crush_display_release(struct crush_display *display);
 
 extern uint32_t crush_display_get_id(struct crush_display *display);
 extern uint8_t *crush_display_get_name(struct crush_display *display);
 
 #define crush_display_get_context_object(_context) \
-        crush_context_get_context_object_type(_context, CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, struct )
+        crush_context_get_context_object_type(_context, CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, struct crush_display_context *)
 
 extern struct light_command *crush_display_get_command();
 extern struct light_command *crush_display_get_subcommand_import();
