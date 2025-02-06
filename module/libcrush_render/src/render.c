@@ -51,7 +51,6 @@ static void print_usage_render_list();
 
 void crush_render_module_load()
 {
-        render_backend_init();
         crush_common_register_context_object_loader(CRUSH_RENDER_CONTEXT_OBJECT_NAME, CRUSH_RENDER_CONTEXT_JSON_FILE, 
                                         crush_render_create_context, crush_render_load_context);
 }

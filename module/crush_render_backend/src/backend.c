@@ -17,10 +17,12 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
 
 void render_backend_init()
 {
+        light_debug("loading default render engine");
         uint8_t status;
         if(status = render_engine_init(&engine_default, "crush:render_engine_default", true)) {
                 light_fatal("failed to load default rendering engine: error code '%s'", light_error_to_string(status));
         }
+        light_debug("default render engine loaded successfully");
 }
 void render_backend_shutdown()
 {
