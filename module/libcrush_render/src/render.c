@@ -42,6 +42,7 @@ static void print_usage_render();
 static void print_usage_render_new();
 static void print_usage_render_info();
 static void print_usage_render_list();
+static void callback__render_job_done(struct render_job *job, void *arg);
 
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_RENDER_CONTEXT_OBJECT_NAME
@@ -56,11 +57,12 @@ void crush_render_module_load()
 }
 extern void crush_render_module_unload()
 {
-        light_debug("shutting down rendering pipeline...");
-        render_backend_shutdown();
-        light_debug("done shutting down render pipeline");
-        // commit all pending changes to object database
-        crush_render_context_commit(crush_render_context());
+        struct crush_render_context *default_context = crush_render_context();
+        struct render_engine *default_engine = render_engine_default();
+        light_debug("saving all pending changes to the object database");
+        crush_render_context_commit(default_context);
+        light_debug("shutting down default rendering pipeline");
+        render_engine_cmd_shutdown(default_engine);
 }
 struct crush_render_context *crush_render_context()
 {
@@ -112,6 +114,7 @@ struct crush_render *crush_render_context_get(struct crush_render_context *conte
         crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
         struct crush_render *result = crush_render_object_deserialize(obj_data);
         json_decref(obj_data);
+        result->context = context;
         return result;
 }
 uint8_t crush_render_context_save(struct crush_render_context *context, struct crush_render *object)
@@ -191,6 +194,11 @@ void crush_render_init(struct crush_render *render, struct crush_font *font, uin
                         crush_font_get_name(font), font_size, crush_display_get_name(display), time_str);
         light_free(time_str);
 }
+void crush_render_release(struct crush_render *render)
+{
+        light_free(render->name);
+        light_free(render);
+}
 uint32_t crush_render_get_id(struct crush_render *render)
 {
         return render->id;
@@ -227,21 +235,50 @@ void crush_render_set_font_size(struct crush_render *render, uint8_t font_size)
 {
         render->font_size = font_size;
 }
-
-void crush_render_add_render_job(struct crush_render *render)
+// -> default behaviour for state changing actions is to bail out if the
+// action collides with another state change
+uint8_t crush_render_add_render_job(struct crush_render *render)
 {
-        uint8_t job = render_engine_create_render_job(render_engine_default(), render->font, render->font_size, render->display, render->path);
-        if(job != RENDER_JOB_ERR) {
-                light_info("rendering font face '%s' at %dpt for display '%s'", render->font->name, render->font_size, render->display->name);
-                render->job_id = job;
-        } else {
-                ID_To_String(id_str, render->id);
-                light_error("failed to queue render job '%s', object ID 0x%s", render->name, id_str);
+        uint8_t state = render->state;
+        if(state != CRUSH_RENDER_STATE_NEW) {
+                light_error("failed to queue render item '%s': object in invalid state '0x%x'", render->name, render->state);
+                return LIGHT_STATE_INVALID;
         }
+        if(!atomic_compare_exchange_strong(&render->state, &state, CRUSH_RENDER_STATE_RUNNING)) {
+                // TODO create some kind of global analytics to count the rate of events like state
+                // collisions, cache misses etc. maybe a simple macro like this:
+                // Light_Analytic_State_Collision();
+                light_error("failed to queue render item '%s': state changed unexpectedly", render->state);
+                return LIGHT_STATE_INVALID;
+        }
+        uint8_t job = render_engine_create_render_job(render_engine_default(), render->name, render->font, render->font_size, render->display, callback__render_job_done, render->path);
+        if(job == RENDER_JOB_ERR) {
+                ID_To_String(id_str, render->id);
+                light_debug("failed to queue render job '%s', object ID 0x%s", render->name, id_str);
+        }
+        light_info("rendering font face '%s' at %dpt for display '%s'", render->font->name, render->font_size, render->display->name);
+        render->job_id = job;
 }
-void crush_render_cancel_render_job(struct crush_render *render)
+uint8_t crush_render_cancel_render_job(struct crush_render *render)
 {
         light_info("render job '%s' canceled", crush_render_get_name(render));
+        uint8_t state = render->state;
+        switch (state)
+        {
+        // in practice, render items are unlikely to stay in the NEW state for long enough to still be
+        // in that state when a CANCEL command arrives
+        case CRUSH_RENDER_STATE_NEW:
+                if(!atomic_compare_exchange_strong(&render->state, &state, CRUSH_RENDER_STATE_CANCEL)) {
+                        light_error("failed: state change collision");
+                        return LIGHT_STATE_INVALID;
+                }
+                break;
+        case CRUSH_RENDER_STATE_CANCEL:
+                light_warn("object already in CANCEL state");
+                return LIGHT_STATE_INVALID;
+        case CRUSH_RENDER_STATE_PAUSE:
+                
+        }
 }
 
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)
@@ -283,13 +320,43 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         new_render->display = display;
 
         struct crush_render_context *context = crush_render_context();
-        uint32_t id = context->next_id;
-        context->next_id = crush_common_get_next_counter_value(id);
+        uint32_t id_old, id_new;
+        do {
+                id_old = context->next_id;
+                id_new = crush_common_get_next_counter_value(id_old);
+        } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
+        new_render->id = id_old;
+        new_render->state = CRUSH_RENDER_STATE_NEW;
         crush_render_context_save(context, new_render);
         // this command performs the actual file write which saves our new object to disk
         crush_render_context_commit(context);
 
+        // this command queues a new render job for processing
+        crush_render_add_render_job(new_render);
+        
         return Result_Success;
+}
+// NOTE that this callback is executed on the background worker stack
+static void callback__render_job_done(struct render_job *job, void *arg)
+{
+        struct crush_render *render = (struct crush_render *)arg;
+        atomic_store(&render->output, job->result);
+        atomic_store(&render->state, CRUSH_RENDER_STATE_DONE);
+
+        crush_render_context_save(render->context, render);
+        crush_render_context_commit(render->context);
+
+        if(job->res_pitch >= 0) {
+                printf("echo render job '%s':\n");
+                for(uint8_t i = 0; i < strlen(RENDER_CHAR_SET); i++) {
+                        printf("\n");
+                        printf(job->result[i]);
+                        light_free(job->result[i]);
+                        printf("\n");
+                }
+                light_free(job->result);
+                light_free(job);
+        }
 }
 static struct light_cli_invocation_result do_cmd_render_info(struct light_cli_invocation *invoke)
 {

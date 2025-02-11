@@ -22,30 +22,49 @@
 #define ENGINE_ERROR            2
 
 // job state codes
-#define JOB_READY               0       // <- this is the state of new jobs in the queue
+#define JOB_READY               0       // <- the state of new jobs in the queue
 #define JOB_ACTIVE              1       // <- the job is running. at most one job per engine
                                         //   can be active at one time.
-#define JOB_ERROR               2       // <- something has gone wrong with the execution of this job
+#define JOB_PAUSED              2       // <- the job has been partially completed and suspended
+#define JOB_DONE                3       // <- the job has been completed
+#define JOB_ERROR               4       // <- something has gone wrong with the execution of this job
 
 #define RENDER_JOB_MAX          8
 #define RENDER_JOB_NEW          RENDER_JOB_MAX
 #define RENDER_JOB_ERR          RENDER_JOB_MAX
 
+#define RENDER_CHAR_SET         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`1234567890-=~!@#$%^&*()_+[]\\{}|;':\",./<>?"
+
+#define QUEUE_BLOCKING          1
+
 struct render_job {
         uint8_t state;
+        thrd_t caller;
+        const uint8_t *name;
         struct crush_font *font;
         uint8_t font_size;
         struct crush_display *display;
+        void *cb_arg;
+        void (*callback)(struct render_job *, void *);
         uint8_t *output_path;
+        uint8_t res_pitch;
+        uint8_t **result;
 };
 
 struct render_engine {
+        _Atomic struct {
+                uint8_t blocking:1;
+                uint8_t closed:1;
+        } flags;
         const uint8_t *name;
         struct render_job *active_job;
         FT_Library freetype;
+        atomic_uchar queue_mode;
         atomic_uchar engine_state;
+        atomic_uchar engine_state_private;
         thrd_t work_thread;
         struct crush_queue work_queue;
+        struct crush_queue result_queue;
 };
 
 extern void render_backend_init();
@@ -54,14 +73,21 @@ extern struct render_engine *render_engine_default();
 
 extern uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bool launch);
 extern uint8_t render_engine_get_state(struct render_engine *engine);
+extern const uint8_t *render_engine_get_name(struct render_engine *engine);
 extern uint8_t render_engine_engine_is_online(struct render_engine *engine);
 extern struct render_job *render_engine_get_active_job(struct render_engine *engine);
 extern uint8_t render_engine_get_job_count(struct render_engine *engine);
 extern struct render_job *render_engine_get_job(struct render_engine *engine, uint8_t id);
-extern uint8_t render_engine_create_render_job(struct render_engine *engine, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, uint8_t *output_path);
-extern void render_engine_suspend_processing(struct render_engine *engine);
-extern void render_engine_resume_processing(struct render_engine *engine);
-extern void render_engine_cancel_active_job(struct render_engine *engine);
-extern void render_engine_shutdown(struct render_engine *engine);
+extern uint8_t render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), uint8_t *output_path);
+// this will block the calling thread until a job becomes available
+extern uint8_t **render_engine_collect_render_job(struct render_engine *engine);
+// this variant is nonblocking, and returns null if no jobs are waiting
+extern uint8_t **render_engine_try_collect_render_job(struct render_engine *engine);
+extern void render_engine_cmd_set_mode(struct render_engine *engine, uint8_t mode);
+extern void render_engine_cmd_launch(struct render_engine *engine);
+extern void render_engine_cmd_suspend_processing(struct render_engine *engine);
+extern void render_engine_cmd_resume_processing(struct render_engine *engine);
+extern void render_engine_cmd_cancel_active_job(struct render_engine *engine);
+extern void render_engine_cmd_shutdown(struct render_engine *engine);
 
 #endif

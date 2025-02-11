@@ -18,6 +18,7 @@ struct crush_display {
         uint16_t resolution_v;
         uint16_t ppi_h;
         uint16_t ppi_v;
+        uint8_t pixel_depth;
         double height_mm;
         double width_mm;
 };

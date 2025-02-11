@@ -4,8 +4,8 @@
 #define QUEUE_MAX               16
 #define QUEUE_NULL              QUEUE_MAX
 
-#define QUEUE_OK                0
-#define QUEUE_FAIL              1
+#define QUEUE_OK                0u
+#define QUEUE_FAIL              1u
 // -> this structure employs a simple protocol to encode its state, where the [head] index
 // is set to an out-of-range value (QUEUE_NULL) when the queue is full, and the [tail]
 // index to the same value when the queue is empty. this provides a consistent and compact
