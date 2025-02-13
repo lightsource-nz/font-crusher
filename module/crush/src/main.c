@@ -29,7 +29,7 @@ Light_Application_Define(
 );
 
 static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke);
-Light_Command_Define(cmd_crush, NULL, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush, 0, 0);
+Light_Command_Define(cmd_crush, &root_command, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush, 0, 0);
 
 static void crush_init();
 static void print_usage_context();
