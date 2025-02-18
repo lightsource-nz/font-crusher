@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "LIGHT_LOG_LEVEL=DEBUG"
+                "render", "new"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",

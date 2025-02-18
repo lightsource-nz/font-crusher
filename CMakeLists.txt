@@ -8,6 +8,9 @@ project(font-crusher C)
 
 add_subdirectory(${LIGHT_PATH}/ light_framework)
 
+set(TEST_MODULE_DIR "${CMAKE_CURRENT_LIST_DIR}/test_module")
+set(TEST_RESOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/test_resource")
+
 add_subdirectory(module/mod_jansson)
 add_subdirectory(module/mod_freetype)
 add_subdirectory(module/libcrush_common)
@@ -19,3 +22,5 @@ add_subdirectory(module/libcrush_render)
 add_subdirectory(module/libcrush)
 add_subdirectory(module/crush_render_backend)
 add_subdirectory(module/crush)
+
+add_subdirectory(test_module/cmd_render_new)

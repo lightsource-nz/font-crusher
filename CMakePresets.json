@@ -6,8 +6,6 @@
             "name": "conf-crush-base",
             "hidden": true,
             "inherits": ["conf-light-host-base"],
-            "binaryDir": "${sourceDir}/build",
-            "generator": "Ninja",
             "cacheVariables": {
             }
         },
@@ -48,6 +46,15 @@
             "name": "build-crush-release",
             "configurePreset": "conf-crush-release",
             "targets":["crush"]
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "crush-test-render-new",
+            "configurePreset": "conf-crush-debug",
+            "environment": {
+                "CRUSH_CONTEXT": ""
+            }
         }
     ]
 }
