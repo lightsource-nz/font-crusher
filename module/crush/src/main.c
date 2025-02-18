@@ -31,7 +31,6 @@ Light_Application_Define(
 static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke);
 Light_Command_Define(cmd_crush, &root_command, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush, 0, 0);
 
-static void crush_init();
 static void print_usage_context();
 static uint8_t parse_command_name(const char *name);
 static uint8_t command_is_container(void *obj);
