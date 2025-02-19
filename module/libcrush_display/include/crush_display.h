@@ -7,6 +7,7 @@
 Light_Command_Declare(cmd_crush_display, cmd_crush);
 Light_Command_Declare(cmd_crush_display_import, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_info, cmd_crush_display);
+Light_Command_Declare(cmd_crush_display_list, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_remove, cmd_crush_display);
 
 struct crush_display {
@@ -59,8 +60,25 @@ extern uint8_t *crush_display_get_name(struct crush_display *display);
 #define crush_display_get_context_object(_context) \
         crush_context_get_context_object_type(_context, CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, struct crush_display_context *)
 
-extern struct light_command *crush_display_get_command();
-extern struct light_command *crush_display_get_subcommand_import();
-extern struct light_command *crush_display_get_subcommand_info();
+static inline struct light_command *crush_display_get_command()
+{
+        return &cmd_crush_display;
+}
+static inline struct light_command *crush_display_get_subcommand_import()
+{
+        return &cmd_crush_display_import;
+}
+static inline struct light_command *crush_display_get_subcommand_info()
+{
+        return &cmd_crush_display_info;
+}
+static inline struct light_command *crush_display_get_subcommand_list()
+{
+        return &cmd_crush_display_list;
+}
+static inline struct light_command *crush_display_get_subcommand_remove()
+{
+        return &cmd_crush_display_remove;
+}
 
 #endif

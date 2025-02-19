@@ -215,19 +215,6 @@ uint8_t *crush_display_get_name(struct crush_display *display)
 {
         return display->name;
 }
-
-struct light_command *crush_display_get_command()
-{
-        return cmd_display;
-}
-struct light_command *crush_display_get_subcommand_import()
-{
-        return cmd_display_import;
-}
-struct light_command *crush_display_get_subcommand_info()
-{
-        return cmd_display_info;
-}
 static void print_usage_context()
 {
         printf(

@@ -52,10 +52,25 @@ extern uint8_t *crush_font_get_name(struct crush_font *font);
 extern uint8_t *crush_font_get_target_file(struct crush_font *font);
 extern uint8_t crush_font_get_target_face_index(struct crush_font *font);
 
-extern struct light_command *crush_font_get_command();
-extern struct light_command *crush_font_get_subcommand_add();
-extern struct light_command *crush_font_get_subcommand_remove();
-extern struct light_command *crush_font_get_subcommand_info();
-extern struct light_command *crush_font_get_subcommand_list();
+static inline struct light_command *crush_font_get_command()
+{
+        return &cmd_crush_font;
+}
+static inline struct light_command *crush_font_get_subcommand_add()
+{
+        return &cmd_crush_font_add;
+}
+static inline struct light_command *crush_font_get_subcommand_remove()
+{
+        return &cmd_crush_font_remove;
+}
+static inline struct light_command *crush_font_get_subcommand_info()
+{
+        return &cmd_crush_font_info;
+}
+static inline struct light_command *crush_font_get_subcommand_list()
+{
+        return &cmd_crush_font_list;
+}
 
 #endif

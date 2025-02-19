@@ -169,48 +169,26 @@ uint8_t *crush_font_get_name(struct crush_font *font)
         return font->name;
 }
 
-struct light_command *crush_font_get_command()
-{
-        return &cmd_crush_font;
-}
-struct light_command *crush_font_get_subcommand_add()
-{
-        return &cmd_crush_font_add;
-}
-struct light_command *crush_font_get_subcommand_remove()
-{
-        return &cmd_crush_font_remove;
-}
-struct light_command *crush_font_get_subcommand_info()
-{
-        return &cmd_crush_font_info;
-}
-struct light_command *crush_font_get_subcommand_list()
-{
-        return &cmd_crush_font_list;
-}
-
 // shows information about the currently selected CRUSH_FONT, if any
 static struct light_cli_invocation_result do_cmd_font(struct light_cli_invocation *invoke)
 {
-        // pull value of CRUSH_FONT environment variable
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invocation *invoke)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_info(struct light_cli_invocation *invoke)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_list(struct light_cli_invocation *invoke)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static void print_usage_font()
 {

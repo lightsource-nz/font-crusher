@@ -6,6 +6,8 @@
 
 #define COMMAND_MODULE_NAME                    "module"
 #define COMMAND_MODULE_DESCRIPTION             "command used to load and unload modules defining extended functionality for crush"
+#define COMMAND_MODULE_INFO_NAME               "info"
+#define COMMAND_MODULE_INFO_DESCRIPTION        "command used to show info for the named crush module"
 #define COMMAND_MODULE_LIST_NAME               "list"
 #define COMMAND_MODULE_LIST_DESCRIPTION        "command used to list all modules currently available in this crush context"
 #define COMMAND_MODULE_LOAD_NAME               "load"
@@ -18,6 +20,7 @@
 #define COMMAND_MODULE_REMOVE_DESCRIPTION      "command used to remove an available crush module from this crush context"
 
 static struct light_cli_invocation_result do_cmd_module(struct light_cli_invocation *command);
+static struct light_cli_invocation_result do_cmd_module_info(struct light_cli_invocation *command);
 static struct light_cli_invocation_result do_cmd_module_list(struct light_cli_invocation *command);
 static struct light_cli_invocation_result do_cmd_module_load(struct light_cli_invocation *command);
 static struct light_cli_invocation_result do_cmd_module_unload(struct light_cli_invocation *command);
@@ -25,6 +28,7 @@ static struct light_cli_invocation_result do_cmd_module_add(struct light_cli_inv
 static struct light_cli_invocation_result do_cmd_module_remove(struct light_cli_invocation *command);
 
 Light_Command_Define(cmd_crush_module, &cmd_crush, COMMAND_MODULE_NAME, COMMAND_MODULE_DESCRIPTION, do_cmd_module, 0, 0);
+Light_Command_Define(cmd_crush_module_info, &cmd_crush_module, COMMAND_MODULE_INFO_NAME, COMMAND_MODULE_INFO_DESCRIPTION, do_cmd_module_info, 1, 1);
 Light_Command_Define(cmd_crush_module_list, &cmd_crush_module, COMMAND_MODULE_LIST_NAME, COMMAND_MODULE_LIST_DESCRIPTION, do_cmd_module_list, 0, 0);
 Light_Command_Define(cmd_crush_module_load, &cmd_crush_module, COMMAND_MODULE_LOAD_NAME, COMMAND_MODULE_LOAD_DESCRIPTION, do_cmd_module_load, 1, 2);
 Light_Command_Define(cmd_crush_module_unload, &cmd_crush_module, COMMAND_MODULE_UNLOAD_NAME, COMMAND_MODULE_UNLOAD_DESCRIPTION, do_cmd_module_unload, 1, 1);
@@ -32,6 +36,7 @@ Light_Command_Define(cmd_crush_module_add, &cmd_crush_module, COMMAND_MODULE_ADD
 Light_Command_Define(cmd_crush_module_remove, &cmd_crush_module, COMMAND_MODULE_REMOVE_NAME, COMMAND_MODULE_REMOVE_DESCRIPTION, do_cmd_module_remove, 1, 1);
 
 static void print_usage_module();
+static void print_usage_module_info();
 static void print_usage_module_list();
 static void print_usage_module_load();
 static void print_usage_module_unload();
@@ -97,27 +102,31 @@ uint8_t crush_module_context_commit(struct crush_module_context *context);
 static struct light_cli_invocation_result do_cmd_module(struct light_cli_invocation *command)
 {
         // pull value of CRUSH_MODULE environment variable
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
+}
+static struct light_cli_invocation_result do_cmd_module_info(struct light_cli_invocation *command)
+{
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_module_list(struct light_cli_invocation *command)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_module_load(struct light_cli_invocation *command)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_module_unload(struct light_cli_invocation *command)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_module_add(struct light_cli_invocation *command)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_module_remove(struct light_cli_invocation *command)
 {
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
+        return Result_Success;
 }
 static void print_usage_module()
 {
@@ -129,7 +138,13 @@ static void print_usage_module()
                 "crush module add <url>\n"
         );
 }
-
+static void print_usage_module_info()
+{
+        printf(
+                "Usage:\n"
+                "crush module info <module_name> [options] \n"
+        );
+}
 static void print_usage_module_list()
 {
         printf(
