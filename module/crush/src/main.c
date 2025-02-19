@@ -8,16 +8,6 @@
 
 #define CRUSH_VERSION_MAJOR                     1
 
-#define DPI_MAX_DIGITS                          8
-
-static uint8_t font_size = 0;
-static uint8_t font_size_unit = UNIT_POINT;
-static char *out_filename = NULL;
-static char *in_filename = NULL;
-static char *out_dirname = NULL;
-static uint16_t dpi_h = DPI_H_DEFAULT;
-static uint16_t dpi_v = DPI_V_DEFAULT;
-
 static void crush_app_event(const struct light_module *mod, uint8_t event, void *arg);
 static uint8_t crush_app_main(struct light_application *app);
 
@@ -31,12 +21,7 @@ Light_Application_Define(
 static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke);
 Light_Command_Define(cmd_crush, &root_command, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush, 0, 0);
 
-static void print_usage_context();
-static uint8_t parse_command_name(const char *name);
-static uint8_t command_is_container(void *obj);
-void set_option_font_size(char *value);
-void set_option_out_filename(char *value);
-uint8_t set_option_dpi(char *value);
+static void print_usage();
 int main(int argc, char *argv[])
 {
         light_framework_init();
@@ -64,100 +49,14 @@ static uint8_t crush_app_main(struct light_application *app)
         return LF_STATUS_SHUTDOWN;
 }
 static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke){
-        print_usage_context();
-        return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
-}
-// perform all init activities that take place before the parsing of
-// command line arguments, such as loading built-in commands, and
-// installed plugin modules
-static void crush_init()
-{
-        /*
-        cmd_root = light_cli_register_command(
-                CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush);
-        crush_cmd_context_init(cmd_root);
-        crush_display_init(cmd_root);
-        crush_font_init(cmd_root);
-        crush_module_init(cmd_root);
-        crush_render_init(cmd_root);*/
-        
-}
-uint8_t crush_process_command_line(int argc, char *argv[])
-{
-        if(argc < 2) {
-                print_usage_context();
-                return 1;
-        }
-        // argv[0] is the command name (i.e. crush)
-        // argv[1] is the subcommand name (font, render, etc)
-        // so we start iteratively parsing args from argv[2]
-        for(uint8_t i = 2; i < argc; i++) {
-                if(argv[i][0] == '-') {
-                        switch (argv[i++][1]) {
-                        case 's':
-                                set_option_font_size(argv[i]);
-                                break;
-                        case 'o':
-                                set_option_out_filename(argv[i]);
-                                break;
-                        }
-                } else if(!in_filename) {
-                        in_filename = argv[i];
-                } else if(!out_dirname) {
-                        out_dirname = argv[i];
-                }
-        }
-        if(!out_dirname) {
-                printf("Error: too few arguments (expected 2)\n");
-                print_usage_context();
-                return CODE_INVALID_ARG;
-        }
-
-        return 0;
-}
-void set_option_font_size(char *value)
-{
-        size_t length = strlen(value);
-        char *end;
-        font_size = (uint8_t) strtol(value, &end, 10);
-        if(end < value + length) {
-                if(strcmp(end, "px")) {
-                        font_size_unit = UNIT_PIXEL;
-                } else if(strcmp(end, "pt")) {
-                        font_size_unit = UNIT_POINT;
-                } else {
-                        printf("invalid number passed to option -s\n");
-                        exit(CODE_INVALID_ARG);
-                }
-        }
+        print_usage();
+        return Result_Error;
 }
 struct light_command *crush_command_root()
 {
         return &cmd_crush;
 }
-void set_option_out_filename(char *value)
-{
-        out_filename = value;
-}
-uint8_t set_option_dpi(char *value)
-{
-        uint8_t x = 0;
-        while(value[x] != 'x' && value[x] != 'X') {
-                if(value[x] == 0) return CODE_INVALID_ARG;
-                if(x > DPI_MAX_DIGITS) return CODE_INVALID_ARG;
-                x++;
-
-        }
-        uint8_t length = (uint8_t) strlen(value);
-        char val_dpi_h[DPI_MAX_DIGITS];
-        char val_dpi_v[DPI_MAX_DIGITS];
-        memcpy(val_dpi_h, value, length - x);
-        memcpy(val_dpi_v, &value[x + 1], length - (length - x));
-        dpi_h = (uint16_t) strtol(val_dpi_h, NULL, 10);
-        dpi_v = (uint16_t) strtol(val_dpi_v, NULL, 10);
-        return CODE_OK;
-}
-static void print_usage_context()
+static void print_usage()
 {
     printf("Usage: font_crusher export [-s <size>] [-o <name>] <font_filename> <output_directory>\n");
 }
