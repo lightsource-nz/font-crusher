@@ -76,13 +76,11 @@ crush_json_t *crush_render_create_context(uint8_t *path)
 {
         uint32_t next_id = crush_common_get_initial_counter_value();
         json_t *render_obj = json_pack(
-                "{"
-                        "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:render",
-                        "s:i,"                  // "next_id":           [counter value],
-                        "s:[]"                  // "contextRenders"
-                "}",
-                "version", SCHEMA_VERSION, "type", OBJECT_NAME, "next_id", next_id, "contextRenders");
+                CONTEXT_OBJECT_NEW_FMT,
+                "version", SCHEMA_VERSION,
+                "type", OBJECT_NAME,
+                "next_id", next_id,
+                "contextRenders");
 
         return render_obj;
 }
@@ -94,12 +92,7 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         render_ctx->file_path = file_path;
         json_unpack(
                 data,
-                "{"
-                        "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:render",
-                        "s:i,"                  // "next_id":           [counter value],
-                        "s:O"                   // "contextRenders"
-                "}",
+                CONTEXT_OBJECT_FMT,
                 "version", &render_ctx->version, "type", &type, "next_id", &render_ctx->next_id,
                 "contextRenders", &render_ctx->data);
         json_decref(data);

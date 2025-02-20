@@ -45,11 +45,52 @@ static void print_usage_module_unload();
 static void print_usage_module_add();
 static void print_usage_module_remove();
 
-#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:o}"
-#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:[]}"
+#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
+#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_MODULE_CONTEXT_OBJECT_NAME
+
+uint8_t *crush_module_get_name(struct crush_module *module)
+{
+        return module->name;
+}
+uint8_t *crush_module_get_version_str(struct crush_module *module)
+{
+        return module->version_str;
+}
+struct crush_module *crush_module_get_parent(struct crush_module *module)
+{
+        return module->parent;
+}
+uint8_t *crush_module_get_source_url(struct crush_module *module)
+{
+        return module->source_url;
+}
+uint8_t *crush_module_get_path(struct crush_module *module)
+{
+        return module->path;
+}
+uint8_t crush_module_get_deps_count(struct crush_module *module)
+{
+        return module->deps_count;
+}
+uint8_t *crush_module_get_deps(struct crush_module *module, uint8_t index)
+{
+        if(index >= module->deps_count)
+                return NULL;
+        return module->deps[index];
+}
+uint8_t crush_module_get_file_count(struct crush_module *module)
+{
+        return module->file_count;
+}
+uint8_t *crush_module_get_file(struct crush_module *module, uint8_t index)
+{
+        if(index >= module->file_count)
+                return NULL;
+        return module->file[index];
+}
 
 uint8_t crush_module_init()
 {
@@ -59,22 +100,13 @@ uint8_t crush_module_init()
 }
 crush_json_t *crush_module_create_context()
 {
+        uint32_t next_id = crush_common_get_initial_counter_value();
         json_t *module_obj = json_pack(
-                "{"
-                        "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:module",
-                        "s:["                   // "contextModules"
-                                "{"
-                                        "s:s,"          //      "name":                 "crush.core"
-                                        "s:i,"          //      "version_seq"           "0"
-                                        "s:s,"          //      "version_string"        "0.1.0"
-                                        "s:s"           //      "mod_root"              "modules/crush.core"
-                                        "s:[]"          //      "dependencies"
-                                "}"
-                        "]"
-                "}",
-                "version", SCHEMA_VERSION, "type", OBJECT_NAME, "contextModules", "name", "crush.core",
-                "version_seq", "0", "version_string", "0.1.0", "mod_root", "modules/crush.core", "dependencies");
+                CONTEXT_OBJECT_NEW_FMT,
+                "version", SCHEMA_VERSION,
+                "type", OBJECT_NAME,
+                "next_id", next_id,
+                "contextModules");
         return module_obj;
 }
 void crush_module_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data)
@@ -83,14 +115,7 @@ void crush_module_load_context(struct crush_context *context, const uint8_t *fil
         struct crush_module_context *mod_ctx = light_alloc(sizeof(struct crush_module_context));
         mod_ctx->root = context;
         mod_ctx->file_path = file_path;
-        json_unpack(
-                data,
-                "{"
-                        "s:i,"                  // "version":           SCHEMA_VERSION,
-                        "s:s,"                  // "type":              "crush:module",
-                        "s:o"                   // "contextModules"
-                "}",
-                "version", &mod_ctx->version, "type", &type,
+        json_unpack(data, CONTEXT_OBJECT_FMT, "version", &mod_ctx->version, "type", &type,"next_id", &mod_ctx->next_id,
                 "contextModules", &mod_ctx->data);
         if(!strcmp(type, OBJECT_NAME)) {
                 light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
@@ -99,22 +124,32 @@ void crush_module_load_context(struct crush_context *context, const uint8_t *fil
 }
 struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint8_t *id)
 {
-        crush_json_t *obj_data = json_object_get(context->data, id);
+        ID_To_String(id_str, id);
+        crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
         struct crush_module *result = crush_module_object_deserialize(obj_data);
         json_decref(obj_data);
+        result->context = context;
         return result;
 }
-uint8_t crush_module_context_save(struct crush_module_context *context, const uint8_t *id, struct crush_module *module)
+uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *module)
 {
-        return json_object_set_new(context->data, id, json_pack("{s:o}", id, crush_module_object_serialize(module)));
+        if(module->id == CRUSH_JSON_ID_NEW) {
+                light_debug("saving new object, name: '%s'", module->name);
+        } else {
+                light_debug("saving object ID 0x%8X, name: '%s'", module->id, module->name);
+        }
+        ID_To_String(id_str, module->id);
+        return json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, crush_module_object_serialize(module));
 }
 uint8_t crush_module_context_commit(struct crush_module_context *context)
 {
+        light_debug("writing context '%s' to disk", context->file_path);
+        ID_To_String(id_str, context->next_id);
         int obj_file_handle = open(context->file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));
         json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT,
                                         "version",      context->version,
-                                        "type",         CRUSH_FONT_CONTEXT_OBJECT_NAME,
-                                        "contextFonts", context->data);
+                                        "type",         CRUSH_MODULE_CONTEXT_OBJECT_NAME,
+                                        "contextModules", context->data);
         json_dumpfd(obj_data, obj_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
         write(obj_file_handle, "\n", 1);
         close(obj_file_handle);
@@ -135,11 +170,11 @@ crush_json_t *crush_module_object_serialize(struct crush_module *module)
         json_t *obj = json_pack(
                 "{"
                         "s:s,"          //      "name":                 "crush.core"
-                        "s:s,"           //      "source_url":           "git:https//github.com/org/lightsource-nz/"
+                        "s:s,"          //      "source_url":           "git:https//github.com/org/lightsource-nz/"
                         "s:s,"          //      "version_string":       "0.1.0"
                         "s:s,"          //      "parent":               "null"
-                        "s:s,"           //      "path":                 "modules/crush.core"
-                        "s:O,"           //      "deps":
+                        "s:s,"          //      "path":                 "modules/crush.core"
+                        "s:O,"          //      "deps":
                         "s:O"           //      "files":
                 "}",
                 "name",         module->name,
