@@ -1,7 +1,9 @@
 #include <crush.h>
 
 #include <jansson.h>
+#include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <errno.h>
 
 #define COMMAND_MODULE_NAME                    "module"
@@ -43,10 +45,13 @@ static void print_usage_module_unload();
 static void print_usage_module_add();
 static void print_usage_module_remove();
 
+#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:o}"
+#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:[]}"
+
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_MODULE_CONTEXT_OBJECT_NAME
 
-uint8_t crush_module_init(struct light_command *cmd_parent)
+uint8_t crush_module_init()
 {
         crush_common_register_context_object_loader(CRUSH_MODULE_CONTEXT_OBJECT_NAME, CRUSH_MODULE_CONTEXT_JSON_FILE,
                                         crush_font_create_context, crush_font_load_context);
@@ -94,10 +99,96 @@ void crush_module_load_context(struct crush_context *context, const uint8_t *fil
 }
 struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint8_t *id)
 {
-
+        crush_json_t *obj_data = json_object_get(context->data, id);
+        struct crush_module *result = crush_module_object_deserialize(obj_data);
+        json_decref(obj_data);
+        return result;
 }
-uint8_t crush_module_context_save(struct crush_module_context *context, const uint8_t *id, struct crush_module *font);
-uint8_t crush_module_context_commit(struct crush_module_context *context);
+uint8_t crush_module_context_save(struct crush_module_context *context, const uint8_t *id, struct crush_module *module)
+{
+        return json_object_set_new(context->data, id, json_pack("{s:o}", id, crush_module_object_serialize(module)));
+}
+uint8_t crush_module_context_commit(struct crush_module_context *context)
+{
+        int obj_file_handle = open(context->file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));
+        json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT,
+                                        "version",      context->version,
+                                        "type",         CRUSH_FONT_CONTEXT_OBJECT_NAME,
+                                        "contextFonts", context->data);
+        json_dumpfd(obj_data, obj_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
+        write(obj_file_handle, "\n", 1);
+        close(obj_file_handle);
+        json_decref(obj_data);
+
+        return 0;
+}
+crush_json_t *crush_module_object_serialize(struct crush_module *module)
+{
+        json_t *deps = json_array();
+        for(uint8_t i = 0; i < module->deps_count; i++) {
+                json_array_append_new(deps, json_string(module->deps[i]));
+        }
+        json_t *files = json_array();
+        for(uint8_t i = 0; i < module->file_count; i++) {
+                json_array_append_new(files, json_string(module->file[i]));
+        }
+        json_t *obj = json_pack(
+                "{"
+                        "s:s,"          //      "name":                 "crush.core"
+                        "s:s,"           //      "source_url":           "git:https//github.com/org/lightsource-nz/"
+                        "s:s,"          //      "version_string":       "0.1.0"
+                        "s:s,"          //      "parent":               "null"
+                        "s:s,"           //      "path":                 "modules/crush.core"
+                        "s:O,"           //      "deps":
+                        "s:O"           //      "files":
+                "}",
+                "name",         module->name,
+                "source_url",   module->source_url,
+                "version_str",  module->version_str,
+                "parent",       module->parent->name,
+                "path",         module->path,
+                "deps",         &deps,
+                "files",        &files
+                );
+        return obj;
+}
+struct crush_module *crush_module_object_deserialize(crush_json_t *data)
+{
+        struct crush_module *module = light_alloc(sizeof(struct crush_font));
+        crush_json_t *files_data, *deps_data;
+        json_unpack(data, 
+                "{"
+                        "s:s,"          //      "name":                 "font_creator.sans_helvetica"
+                        "s:s,"          //      "source_url"            "git:https://github.com/font_creator/sans_helvetica"
+                        "s:s,"          //      "version_str"           "crush:font:opentype"
+                        "s:s,"          //      "parent"                "[git commit hash]"
+                        "s:s,"          //      "path"                  "font/font_creator.sans_helvetica"
+                        "s:O,"          //      "deps":
+                        "s:O"           //      "files":
+                "}",
+                "name",         &module->name,
+                "source_url",   &module->source_url,
+                "version_str",  &module->version_str,
+                "parent",       &module->parent,
+                "path",         &module->path,
+                "deps",         &deps_data,
+                "files",        &files_data
+        );
+        uint8_t i;
+        json_t *value;
+        json_array_foreach(deps_data, i, value) {
+                json_unpack(value, "s", &module->deps[i]);
+        }
+        json_array_foreach(files_data, i, value) {
+                json_unpack(value, "s", &module->file[i]);
+        }
+        json_decref(data);
+        json_decref(deps_data);
+        json_decref(files_data);
+
+        return module;
+}
+
 // shows information about the currently selected CRUSH_MODULE, if any
 static struct light_cli_invocation_result do_cmd_module(struct light_cli_invocation *command)
 {
