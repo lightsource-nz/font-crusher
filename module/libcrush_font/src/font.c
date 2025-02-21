@@ -92,9 +92,15 @@ struct crush_font *crush_font_context_get_by_name(struct crush_font_context *con
         }
         return NULL;
 }
-uint8_t crush_font_context_save(struct crush_font_context *context, const uint8_t *id, struct crush_font *font)
+uint8_t crush_font_context_save(struct crush_font_context *context, struct crush_font *object)
 {
-        return json_object_set_new(context->data, id, json_pack("{s:o}", id, crush_font_object_serialize(font)));
+        if(object->id == CRUSH_JSON_ID_NEW) {
+                light_debug("saving new object, name: '%s'", object->name);
+        } else {
+                light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
+        }
+        ID_To_String(id_str, object->id);
+        return json_object_set_new(context->data, id_str, crush_font_object_serialize(object));
 }
 uint8_t crush_font_context_commit(struct crush_font_context *context)
 {

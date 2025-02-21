@@ -119,7 +119,6 @@ uint8_t crush_display_context_save(struct crush_display_context *context, struct
         }
         ID_To_String(id_str, object->id);
         return json_object_set_new(context->data, id_str, crush_display_object_serialize(object));
-        
 }
 uint8_t crush_display_context_commit(struct crush_display_context *context)
 {

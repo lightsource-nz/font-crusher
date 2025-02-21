@@ -46,7 +46,7 @@ static inline struct crush_font *crush_font_get_by_name(const uint8_t *name)
 {
         return crush_font_context_get_by_name(crush_font_context(), name);
 }
-extern uint8_t crush_font_context_save(struct crush_font_context *context, const uint8_t *id, struct crush_font *font);
+extern uint8_t crush_font_context_save(struct crush_font_context *context, struct crush_font *font);
 extern uint8_t crush_font_context_commit(struct crush_font_context *context);
 extern crush_json_t *crush_font_object_serialize(struct crush_font *font);
 extern struct crush_font *crush_font_object_deserialize(crush_json_t *data);

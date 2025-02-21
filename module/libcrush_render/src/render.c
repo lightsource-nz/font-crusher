@@ -142,13 +142,19 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
 {
         json_t *data = json_pack(
                 "{"
-                        "s:s,"          //      "name": "render:sans_helvetica/$disp/$version"
-                        "s:i,"          //      "font": "sans_helvetica"
-                        "s:i,"          //      "display": "$disp"
-                        "s:s"           //      "path": "data/render/sans_helvetica/$disp/$version"
+                        "s:s,"          //      "name":                 "crush:render:$id"
+                        "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
+                        "s:i,"          //      "job_id"                "2843"
+                        "s:i,"          //      "font":                 "sans_helvetica"
+                        "s:i,"          //      "font_size"             "14"
+                        "s:i,"          //      "display":              "$disp"
+                        "s:s,"          //      "path":                 "$context/data/render/$id"
                 "}",
                 "name",         object->name,
+                "state",        object->state,
+                "job_id",       object->job_id,
                 "font",         crush_font_get_id(object->font),
+                "font_size",    object->font_size,
                 "display",      crush_display_get_id(object->display),
                 "path",         object->path
                 );
@@ -161,16 +167,27 @@ struct crush_render *crush_render_object_deserialize(crush_json_t *data)
         json_unpack(data, 
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
-                        "s:i,"          //      "font": "sans_helvetica"
-                        "s:i,"          //      "display": "$disp"
+                        "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
+                        "s:i,"          //      "job_id"                "2843"
+                        "s:i,"          //      "font":                 "sans_helvetica"
+                        "s:i,"          //      "font_size"             "14"
+                        "s:i,"          //      "display":              "$disp"
                         "s:s,"          //      "path":                 "$context/data/render/$id"
                 "}",
                 "name",         &object->name,
+                "state",        &object->state,
+                "job_id",       &object->job_id,
                 "font",         &font_id,
-                "display",       &display_id,
+                "font_size",    &object->font_size,
+                "display",      &display_id,
                 "path",         &object->path
         );
         json_decref(data);
+
+        ID_To_String(font_str, font_id);
+        ID_To_String(display_str, display_id);
+        object->font = crush_font_get(font_str);
+        object->display = crush_display_get(display_str);
         return object;
 }
 
