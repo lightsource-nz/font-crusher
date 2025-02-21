@@ -51,11 +51,11 @@ static void print_usage_module_remove();
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_MODULE_CONTEXT_OBJECT_NAME
 
-uint8_t *crush_module_get_name(struct crush_module *module)
+const uint8_t *crush_module_get_name(struct crush_module *module)
 {
         return module->name;
 }
-uint8_t *crush_module_get_version_str(struct crush_module *module)
+const uint8_t *crush_module_get_version_str(struct crush_module *module)
 {
         return module->version_str;
 }
@@ -63,11 +63,11 @@ struct crush_module *crush_module_get_parent(struct crush_module *module)
 {
         return module->parent;
 }
-uint8_t *crush_module_get_source_url(struct crush_module *module)
+const uint8_t *crush_module_get_source_url(struct crush_module *module)
 {
         return module->source_url;
 }
-uint8_t *crush_module_get_path(struct crush_module *module)
+const uint8_t *crush_module_get_path(struct crush_module *module)
 {
         return module->path;
 }
@@ -75,7 +75,7 @@ uint8_t crush_module_get_deps_count(struct crush_module *module)
 {
         return module->deps_count;
 }
-uint8_t *crush_module_get_deps(struct crush_module *module, uint8_t index)
+struct crush_module *crush_module_get_deps(struct crush_module *module, uint8_t index)
 {
         if(index >= module->deps_count)
                 return NULL;
@@ -91,8 +91,72 @@ uint8_t *crush_module_get_file(struct crush_module *module, uint8_t index)
                 return NULL;
         return module->file[index];
 }
+bool crush_module_has_direct_dependency(struct crush_module *module, struct crush_module *other)
+{
+        for(uint8_t i = 0; i < other->deps_count; i++) {
+                if(strcmp(crush_module_get_name(other->deps[i]), crush_module_get_name(module))) {
+                        return true;
+                }
+        }
+        return false;
+}
+#define DEPENDENCY_MAX_DEPTH    16
+static bool depends_on_recurse(struct crush_module *module, struct crush_module *other, uint8_t depth)
+{
+        if(depth == 0) {
+                return false;
+        }
+        for(uint8_t i = 0; i < other->deps_count; i++) {
+                if(strcmp(crush_module_get_name(other->deps[i]), crush_module_get_name(module))) {
+                        return true;
+                }
+                if(depends_on_recurse(module, other->deps[i], depth - 1)) {
+                        return true;
+                }
+        }
+        return false;
+}
+bool crush_module_depends_on(struct crush_module *module, struct crush_module *other)
+{
+        return depends_on_recurse(module, other, DEPENDENCY_MAX_DEPTH);
+}
 
-uint8_t crush_module_init()
+void crush_module_init(struct crush_module *module, struct crush_module_context *context, struct crush_module *parent, const uint8_t *name, const uint16_t version_seq, const uint8_t *source_url, const uint8_t *path)
+{
+        module->context = context;
+        module->parent = parent;
+        module->name = name;
+        module->source_url = source_url;
+        module->version_seq = version_seq;
+        module->path = path;
+        module->state = CRUSH_MODULE_STATE_NEW;
+        module->deps_count = 0;
+        module->file_count = 0;
+}
+void crush_module_release(struct crush_module *module)
+{
+        light_free(module);
+}
+// list accessors return LIGHT_NO_RESOURCE on list overflow
+uint8_t crush_module_add_dependency(struct crush_module *module, struct crush_module *dependency)
+{
+        if(module->deps_count >= CRUSH_MODULE_DEPS_MAX) {
+                light_error("failed to add dependency '%s' to crush module '%s': max modules reached",
+                                crush_module_get_name(dependency), crush_module_get_name(module));
+                return LIGHT_NO_RESOURCE;
+        }
+        module->deps[module->deps_count++] = dependency;
+}
+uint8_t crush_module_add_file(struct crush_module *module, uint8_t *filename)
+{
+        if(module->deps_count >= CRUSH_MODULE_FILE_MAX) {
+                light_error("failed to add file '%s' to crush module '%s': max files reached",
+                                                        filename, crush_module_get_name(module));
+                return LIGHT_NO_RESOURCE;
+        }
+        module->file[module->file_count++] = filename;
+}
+uint8_t crush_module_onload()
 {
         crush_common_register_context_object_loader(CRUSH_MODULE_CONTEXT_OBJECT_NAME, CRUSH_MODULE_CONTEXT_JSON_FILE,
                                         crush_font_create_context, crush_font_load_context);
@@ -161,7 +225,7 @@ crush_json_t *crush_module_object_serialize(struct crush_module *module)
 {
         json_t *deps = json_array();
         for(uint8_t i = 0; i < module->deps_count; i++) {
-                json_array_append_new(deps, json_string(module->deps[i]));
+                json_array_append_new(deps, json_string(crush_module_get_name(module->deps[i])));
         }
         json_t *files = json_array();
         for(uint8_t i = 0; i < module->file_count; i++) {
