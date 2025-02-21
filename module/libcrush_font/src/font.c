@@ -78,6 +78,20 @@ struct crush_font *crush_font_context_get(struct crush_font_context *context, co
         json_decref(obj_data);
         return result;
 }
+struct crush_font *crush_font_context_get_by_name(struct crush_font_context *context, const uint8_t *name)
+{
+        const char *key;
+        json_t *value;
+        json_object_foreach(context->data, key, value) {
+                if(strcmp(json_string_value(json_object_get(value, "name")), name)) {
+                        struct crush_font *out = crush_font_object_deserialize(value);
+                        json_decref(value);
+                        return out;
+                }
+                json_decref(value);
+        }
+        return NULL;
+}
 uint8_t crush_font_context_save(struct crush_font_context *context, const uint8_t *id, struct crush_font *font)
 {
         return json_object_set_new(context->data, id, json_pack("{s:o}", id, crush_font_object_serialize(font)));
@@ -176,6 +190,7 @@ static struct light_cli_invocation_result do_cmd_font(struct light_cli_invocatio
 }
 static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invocation *invoke)
 {
+        struct crush_font *font = light_alloc(sizeof(struct crush_font));
         return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke)
@@ -184,6 +199,16 @@ static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_in
 }
 static struct light_cli_invocation_result do_cmd_font_info(struct light_cli_invocation *invoke)
 {
+        if(invoke->args_bound < 1) {
+                light_error("not enough args bound to run command (%d, requires 1)", invoke->args_bound);
+                return Result_Error;
+        }
+        struct crush_font *font = crush_font_get_by_name(invoke->arg[0]);
+        light_info("Crush Font record:");
+        light_info("font name: '%s'", font->name);
+        light_info("font type: '%s'", font->font_type);
+        light_info("font version: '%s'", font->font_version);
+        light_info("source URL: '%s'", font->source_url);
         return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_list(struct light_cli_invocation *invoke)

@@ -289,9 +289,9 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
                 light_error("command 'crush render new' called without setting either '--font' option or ${CRUSH_FONT} environment variable");
                 return Result_Error;
         }
-        struct crush_font *font = crush_font_get(str_font);
+        struct crush_font *font = crush_font_get_by_name(str_font);
         if(!font) {
-                light_error("could not find font object with ID '%s'", str_font);
+                light_error("could not find font object with name '%s'", str_font);
                 return Result_Error;
         }
         const uint8_t *str_display = light_cli_invocation_get_option_value(invoke, OPTION_RENDER_NEW_DISPLAY_NAME);
@@ -302,7 +302,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
                 light_error("command 'crush render new' called without setting either '--display' option or ${CRUSH_DISPLAY} environment variable");
                 return Result_Error;
         }
-        struct crush_display *display = crush_display_find(str_display);
+        struct crush_display *display = crush_display_get_by_name(str_display);
         if(!display) {
                 light_error("could not find display object with ID '%s'", str_display);
                 return Result_Error;

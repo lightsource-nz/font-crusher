@@ -37,15 +37,15 @@ extern struct crush_display_context *crush_display_context();
 extern struct crush_display_context *crush_display_get_context(struct crush_context *root);
 extern crush_json_t *crush_display_create_context();
 extern void crush_display_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *json);
-extern struct crush_display *crush_display_get_ctx(struct crush_display_context *context, uint32_t id);
+extern struct crush_display *crush_display_context_get(struct crush_display_context *context, uint32_t id);
 static inline struct crush_display *crush_display_get(uint32_t id)
 {
-        return crush_display_get_ctx(crush_display_context(), id);
+        return crush_display_context_get(crush_display_context(), id);
 }
-extern struct crush_display *crush_display_find_ctx(struct crush_display_context *ctx, const uint8_t *name);
-static inline struct crush_display *crush_display_find(const uint8_t *name)
+extern struct crush_display *crush_display_context_get_by_name(struct crush_display_context *ctx, const uint8_t *name);
+static inline struct crush_display *crush_display_get_by_name(const uint8_t *name)
 {
-        return crush_display_find_ctx(crush_display_context(), name);
+        return crush_display_context_get_by_name(crush_display_context(), name);
 }
 extern uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object);
 extern uint8_t crush_display_context_commit(struct crush_display_context *context);

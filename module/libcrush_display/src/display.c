@@ -87,7 +87,7 @@ void crush_display_load_context(struct crush_context *context, const uint8_t *fi
         }
         crush_context_add_context_object(context, OBJECT_NAME, (void *)display_context);
 }
-struct crush_display *crush_display_get_ctx(struct crush_display_context *context, uint32_t id)
+struct crush_display *crush_display_context_get(struct crush_display_context *context, uint32_t id)
 {
         ID_To_String(id_str, id);
         crush_json_t *obj_data = json_object_get(context->data, id_str);
@@ -96,16 +96,18 @@ struct crush_display *crush_display_get_ctx(struct crush_display_context *contex
         json_decref(obj_data);
         return result;
 }
-struct crush_display *crush_display_find_ctx(struct crush_display_context *ctx, const uint8_t *name)
+struct crush_display *crush_display_context_get_by_name(struct crush_display_context *ctx, const uint8_t *name)
 {
         const uint8_t *_key;
         json_t *_val;
         // TODO place sync barriers around access to the object store
         json_object_foreach(ctx->data, _key, _val) {
-                struct crush_display *display = crush_display_object_deserialize(_val);
-                if(strcmp(crush_display_get_name(display), name))
-                        return display;
-                crush_display_release(display);
+                if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
+                        struct crush_display *out = crush_display_object_deserialize(_val);
+                        json_decref(_val);
+                        return out;
+                }
+                json_decref(_val);
         }
 }
 uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object)
