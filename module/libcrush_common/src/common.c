@@ -191,9 +191,10 @@ bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *conte
         light_free(ctx_file_path);
 
         // we have loaded our context root as a json object, ready to be parsed
+        light_debug("found crush context root at filesystem path '%s'", real_path);
         context->path = real_path;
-        light_free(real_path);
         context->parent = current_context;
+        current_context = context;
         for(uint8_t i = 0; i < next_loader; i++) {
                 const uint8_t *object_file;
                 if( 0 != json_unpack(context_root_json,
@@ -201,17 +202,18 @@ bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *conte
                         light_debug("context object loader for object type '%s' did not find object storage filename", loader[i].name);
                         continue;
                 }
+                const uint8_t *object_path = realpath(crush_path_join(context->path, object_file), NULL);
                 json_error_t err;
                 // NOTE the receiving object loader becomes the owner of the json object and is responsible
                 // for de-referencing it when it is no longer needed
-                crush_json_t *object_json = json_load_file(object_file, JSON_INDENT(8) | JSON_ENSURE_ASCII, &err);
+                crush_json_t *object_json = json_load_file(object_path, JSON_INDENT(8) | JSON_ENSURE_ASCII, &err);
                 if(!object_json) {
                         light_warn("context object loader for object type '%s' failed to load object storage file '%s'", loader[i].name, object_file);
+                        light_warn("json load error: %s:%d:%d: %s", err.source, err.line, err.column, err.text);
                         continue;
                 }
                 loader[i].load(context, object_file, object_json);
         }
-        current_context = context;
         
         // before return we should release the in-memory JSON object structure
         json_decref(context_root_json);
