@@ -217,15 +217,21 @@ struct crush_module *crush_module_context_get_by_name(struct crush_module_contex
                 json_decref(_val);
         }
 }
-uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *module)
+uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *object)
 {
-        if(module->id == CRUSH_JSON_ID_NEW) {
-                light_debug("saving new object, name: '%s'", module->name);
+        if(object->id == CRUSH_JSON_ID_NEW) {
+                light_debug("saving new object, name: '%s'", object->name);
+                uint32_t id_old, id_new;
+                do {
+                        id_old = context->next_id;
+                        id_new = crush_common_get_next_counter_value(id_old);
+                } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
+                object->id = id_old;
         } else {
-                light_debug("saving object ID 0x%8X, name: '%s'", module->id, module->name);
+                light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
         }
-        ID_To_String(id_str, module->id);
-        return json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, crush_module_object_serialize(module));
+        ID_To_String(id_str, object->id);
+        return json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, crush_module_object_serialize(object));
 }
 uint8_t crush_module_context_commit(struct crush_module_context *context)
 {

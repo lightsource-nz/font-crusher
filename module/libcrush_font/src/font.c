@@ -16,6 +16,10 @@
 #define COMMAND_FONT_LIST_NAME "list"
 #define COMMAND_FONT_LIST_DESCRIPTION "displays a list of all fonts stored in the local crush database"
 
+#define COMMAND_FONT_ADD_OPT_LOCALFILE_CODE             'l'
+#define COMMAND_FONT_ADD_OPT_LOCALFILE_NAME             "--local-file"
+#define COMMAND_FONT_ADD_OPT_LOCALFILE_DESC             "indicates that the argument given is a path to a local file, not a URL"
+
 static void print_usage_font();
 static void print_usage_font_add();
 static void print_usage_font_remove();
@@ -33,12 +37,14 @@ Light_Command_Define(cmd_crush_font_remove, &cmd_crush_font, COMMAND_FONT_REMOVE
 Light_Command_Define(cmd_crush_font_info, &cmd_crush_font, COMMAND_FONT_INFO_NAME, COMMAND_FONT_INFO_DESCRIPTION, do_cmd_font_info, 1, 1);
 Light_Command_Define(cmd_crush_font_list, &cmd_crush_font, COMMAND_FONT_LIST_NAME, COMMAND_FONT_LIST_DESCRIPTION, do_cmd_font_list, 0, 0);
 
+Light_Command_Switch_Define(cmd_crush_font_add__opt_localfile, &cmd_crush_font_add, COMMAND_FONT_ADD_OPT_LOCALFILE_NAME, COMMAND_FONT_ADD_OPT_LOCALFILE_CODE, COMMAND_FONT_ADD_OPT_LOCALFILE_DESC);
+
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_FONT_CONTEXT_OBJECT_NAME
 #define JSON_FILE CRUSH_FONT_CONTEXT_JSON_FILE
 
-#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:o}"
-#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:[]}"
+#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
+#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
 uint8_t crush_font_init()
 {
@@ -64,7 +70,12 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
         struct crush_font_context *font_ctx = light_alloc(sizeof(struct crush_font_context));
         font_ctx->root = context;
         font_ctx->file_path = file_path;
-        json_unpack(data, CONTEXT_OBJECT_FMT, "version", &font_ctx->version, "type", &type, "contextFonts", &font_ctx->data);
+        json_unpack(data, 
+                CONTEXT_OBJECT_FMT,
+                "version", &font_ctx->version,
+                "type", &type,
+                "next_id", &font_ctx->next_id,
+                "contextFonts", &font_ctx->data);
         if(!strcmp(type, OBJECT_NAME)) {
                 light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
         }
@@ -97,6 +108,12 @@ uint8_t crush_font_context_save(struct crush_font_context *context, struct crush
 {
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
+                uint32_t id_old, id_new;
+                do {
+                        id_old = context->next_id;
+                        id_new = crush_common_get_next_counter_value(id_old);
+                } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
+                object->id = id_old;
         } else {
                 light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
         }
@@ -107,8 +124,9 @@ uint8_t crush_font_context_commit(struct crush_font_context *context)
 {
         int obj_file_handle = open(context->file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));
         json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT,
-                                        "version",      context->version,
-                                        "type",         CRUSH_FONT_CONTEXT_OBJECT_NAME,
+                                        "version",              context->version,
+                                        "type",                 OBJECT_NAME,
+                                        "next_id",              context->next_id,
                                         "contextFonts", context->data);
         json_dumpfd(obj_data, obj_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
         write(obj_file_handle, "\n", 1);

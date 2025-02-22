@@ -128,6 +128,12 @@ uint8_t crush_render_context_save(struct crush_render_context *context, struct c
 {
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
+                uint32_t id_old, id_new;
+                do {
+                        id_old = context->next_id;
+                        id_new = crush_common_get_next_counter_value(id_old);
+                } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
+                object->id = id_old;
         } else {
                 light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
         }
@@ -342,12 +348,9 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         new_render->display = display;
 
         struct crush_render_context *context = crush_render_context();
-        uint32_t id_old, id_new;
-        do {
-                id_old = context->next_id;
-                id_new = crush_common_get_next_counter_value(id_old);
-        } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
-        new_render->id = id_old;
+
+
+
         new_render->state = CRUSH_RENDER_STATE_NEW;
         crush_render_context_save(context, new_render);
         // this command performs the actual file write which saves our new object to disk

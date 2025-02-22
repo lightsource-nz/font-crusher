@@ -10,6 +10,8 @@ Light_Command_Declare(cmd_crush_font_remove, cmd_crush_font);
 Light_Command_Declare(cmd_crush_font_info, cmd_crush_font);
 Light_Command_Declare(cmd_crush_font_list, cmd_crush_font);
 
+Light_Command_Option_Declare(cmd_crush_font_add__opt_localfile, cmd_crush_font_add);
+
 #define CRUSH_FONT_FILE_MAX                     8
 struct crush_font {
         uint32_t id;

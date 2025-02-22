@@ -114,6 +114,12 @@ uint8_t crush_display_context_save(struct crush_display_context *context, struct
 {
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
+                uint32_t id_old, id_new;
+                do {
+                        id_old = context->next_id;
+                        id_new = crush_common_get_next_counter_value(id_old);
+                } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
+                object->id = id_old;
         } else {
                 light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
         }
