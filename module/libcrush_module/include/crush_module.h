@@ -66,9 +66,20 @@ extern uint8_t crush_module_add_dependency(struct crush_module *module, struct c
 extern uint8_t crush_module_add_file(struct crush_module *module, uint8_t *filename);
 
 extern uint8_t crush_module_onload();
+extern struct crush_module_context *crush_module_context();
+extern struct crush_module_context *crush_module_get_context(struct crush_context *root);
 extern crush_json_t *crush_module_create_context();
 extern void crush_module_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
-extern struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint8_t *id);
+extern struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint32_t id);
+extern struct crush_module *crush_module_context_get_by_name(struct crush_module_context *context, const uint8_t *name);
+static inline struct crush_module *crush_module_get(const uint32_t id)
+{
+        return crush_module_context_get(crush_module_context(), id);
+}
+static inline struct crush_module *crush_module_get_by_name(const uint8_t *name)
+{
+        return crush_module_context_get_by_name(crush_module_context(), name);
+}
 extern uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *module);
 extern uint8_t crush_module_context_commit(struct crush_module_context *context);
 

@@ -162,6 +162,14 @@ uint8_t crush_module_onload()
                                         crush_font_create_context, crush_font_load_context);
         return CODE_OK;
 }
+struct crush_module_context *crush_module_context()
+{
+        return crush_module_get_context(crush_context());
+}
+struct crush_module_context *crush_module_get_context(struct crush_context *root)
+{
+        return crush_context_get_context_object_type(root, OBJECT_NAME, struct crush_module_context *);
+}
 crush_json_t *crush_module_create_context()
 {
         uint32_t next_id = crush_common_get_initial_counter_value();
@@ -186,7 +194,7 @@ void crush_module_load_context(struct crush_context *context, const uint8_t *fil
         }
         crush_context_add_context_object(context, OBJECT_NAME, mod_ctx);
 }
-struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint8_t *id)
+struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint32_t id)
 {
         ID_To_String(id_str, id);
         crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
@@ -194,6 +202,20 @@ struct crush_module *crush_module_context_get(struct crush_module_context *conte
         json_decref(obj_data);
         result->context = context;
         return result;
+}
+struct crush_module *crush_module_context_get_by_name(struct crush_module_context *context, const uint8_t *name)
+{
+        const uint8_t *_key;
+        json_t *_val;
+        // TODO place sync barriers around access to the object store
+        json_object_foreach(context->data, _key, _val) {
+                if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
+                        struct crush_module *out = crush_module_object_deserialize(_val);
+                        json_decref(_val);
+                        return out;
+                }
+                json_decref(_val);
+        }
 }
 uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *module)
 {

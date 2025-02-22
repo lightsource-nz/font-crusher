@@ -101,7 +101,7 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         }
         crush_context_add_context_object(context, CRUSH_MODULE_CONTEXT_OBJECT_NAME, render_ctx);
 }
-struct crush_render *crush_render_context_get(struct crush_render_context *context, uint8_t id)
+struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint32_t id)
 {
         ID_To_String(id_str, id);
         crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
@@ -109,6 +109,20 @@ struct crush_render *crush_render_context_get(struct crush_render_context *conte
         json_decref(obj_data);
         result->context = context;
         return result;
+}
+struct crush_render *crush_render_context_get_by_name(struct crush_render_context *context, const uint8_t *name)
+{
+        const uint8_t *_key;
+        json_t *_val;
+        // TODO place sync barriers around access to the object store
+        json_object_foreach(context->data, _key, _val) {
+                if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
+                        struct crush_render *out = crush_render_object_deserialize(_val);
+                        json_decref(_val);
+                        return out;
+                }
+                json_decref(_val);
+        }
 }
 uint8_t crush_render_context_save(struct crush_render_context *context, struct crush_render *object)
 {
@@ -184,10 +198,8 @@ struct crush_render *crush_render_object_deserialize(crush_json_t *data)
         );
         json_decref(data);
 
-        ID_To_String(font_str, font_id);
-        ID_To_String(display_str, display_id);
-        object->font = crush_font_get(font_str);
-        object->display = crush_display_get(display_str);
+        object->font = crush_font_get(font_id);
+        object->display = crush_display_get(display_id);
         return object;
 }
 

@@ -71,9 +71,10 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
         crush_context_add_context_object(context, OBJECT_NAME, font_ctx);
 }
 
-struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint8_t *id)
+struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint32_t id)
 {
-        crush_json_t *obj_data = json_object_get(context->data, id);
+        ID_To_String(id_str, id);
+        crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
         struct crush_font *result = crush_font_object_deserialize(obj_data);
         json_decref(obj_data);
         return result;
