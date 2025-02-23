@@ -8,7 +8,7 @@
 
 static void _event_load(const struct light_module *module)
 {
-        crush_display_init();
+        crush_display_onload();
 }
 static void _event_unload(const struct light_module *module)
 {

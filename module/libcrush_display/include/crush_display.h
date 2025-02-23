@@ -11,10 +11,11 @@ Light_Command_Declare(cmd_crush_display_list, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_remove, cmd_crush_display);
 
 struct crush_display {
+        struct crush_display_context *context;
         crush_json_t *json;
         uint32_t id;
-        uint8_t *name;
-        uint8_t *description;
+        const uint8_t *name;
+        const uint8_t *description;
         uint16_t resolution_h;
         uint16_t resolution_v;
         uint16_t ppi_h;
@@ -32,7 +33,7 @@ struct crush_display_context {
         uint32_t next_id;
 };
 
-extern uint8_t crush_display_init();
+extern uint8_t crush_display_onload();
 extern struct crush_display_context *crush_display_context();
 extern struct crush_display_context *crush_display_get_context(struct crush_context *root);
 extern crush_json_t *crush_display_create_context();
@@ -49,13 +50,23 @@ static inline struct crush_display *crush_display_get_by_name(const uint8_t *nam
 }
 extern uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object);
 extern uint8_t crush_display_context_commit(struct crush_display_context *context);
+static inline uint8_t crush_display_save(struct crush_display *object)
+{
+        return crush_display_context_save(object->context, object);
+}
+static inline uint8_t crush_display_commit()
+{
+        return crush_display_context_commit(crush_display_context());
+}
 
 extern crush_json_t *crush_display_object_serialize(struct crush_display *display);
 extern struct crush_display *crush_display_object_deserialize(crush_json_t *data);
 extern void crush_display_release(struct crush_display *display);
 
+extern void crush_display_init(struct crush_display *display, const uint8_t *name, const uint8_t *description,
+        uint16_t res_h, uint16_t res_v, uint16_t ppi_h, uint16_t ppi_v, uint8_t pixel_depth);
 extern uint32_t crush_display_get_id(struct crush_display *display);
-extern uint8_t *crush_display_get_name(struct crush_display *display);
+extern const uint8_t *crush_display_get_name(struct crush_display *display);
 
 #define crush_display_get_context_object(_context) \
         crush_context_get_context_object_type(_context, CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, struct crush_display_context *)

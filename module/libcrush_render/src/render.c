@@ -126,6 +126,14 @@ struct crush_render *crush_render_context_get_by_name(struct crush_render_contex
 }
 uint8_t crush_render_context_save(struct crush_render_context *context, struct crush_render *object)
 {
+        // if crush_display_save() is called on an object with no context attached, attach
+        // object to the current context
+        if(!context && !object->context)
+                context = object->context = crush_render_context();
+        if(!context)
+                context = object->context;
+        if(!object->context)
+                object->context = context;
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;

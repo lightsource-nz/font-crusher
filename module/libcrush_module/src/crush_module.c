@@ -219,6 +219,14 @@ struct crush_module *crush_module_context_get_by_name(struct crush_module_contex
 }
 uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *object)
 {
+        // if crush_module_save() is called on an object with no context attached, attach
+        // object to the current context
+        if(!context && !object->context)
+                context = object->context = crush_module_context();
+        if(!context)
+                context = object->context;
+        if(!object->context)
+                object->context = context;
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;

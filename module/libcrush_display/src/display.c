@@ -37,7 +37,7 @@ Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY
 #define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
-uint8_t crush_display_init()
+uint8_t crush_display_onload()
 {
         crush_common_register_context_object_loader(OBJECT_NAME, JSON_FILE,
                                         crush_display_create_context, crush_display_load_context);
@@ -112,6 +112,14 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
 }
 uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object)
 {
+        // if crush_display_save() is called on an object with no context attached, attach
+        // object to the current context
+        if(!context && !object->context)
+                context = object->context = crush_display_context();
+        if(!context)
+                context = object->context;
+        if(!object->context)
+                object->context = context;
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;
@@ -214,11 +222,23 @@ extern void crush_display_release(struct crush_display *display)
         light_free(display);
 }
 
+void crush_display_init(struct crush_display *display, const uint8_t *name, const uint8_t *description,
+                uint16_t res_h, uint16_t res_v, uint16_t ppi_h, uint16_t ppi_v, uint8_t pixel_depth)
+{
+        display->id = CRUSH_JSON_ID_NEW;
+        display->name = name;
+        display->description = description;
+        display->resolution_h = res_h;
+        display->resolution_v = res_v;
+        display->ppi_h = ppi_h;
+        display->ppi_v = ppi_v;
+        display->pixel_depth = pixel_depth;
+}
 uint32_t crush_display_get_id(struct crush_display *display)
 {
         return display->id;
 }
-uint8_t *crush_display_get_name(struct crush_display *display)
+const uint8_t *crush_display_get_name(struct crush_display *display)
 {
         return display->name;
 }

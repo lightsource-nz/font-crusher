@@ -82,6 +82,14 @@ static inline struct crush_module *crush_module_get_by_name(const uint8_t *name)
 }
 extern uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *module);
 extern uint8_t crush_module_context_commit(struct crush_module_context *context);
+static inline uint8_t crush_module_save(struct crush_module *object)
+{
+        return crush_module_context_save(object->context, object);
+}
+static inline uint8_t crush_module_commit()
+{
+        return crush_module_context_commit(crush_module_context());
+}
 
 extern crush_json_t *crush_module_object_serialize(struct crush_module *font);
 extern struct crush_module *crush_module_object_deserialize(crush_json_t *data);

@@ -46,7 +46,7 @@ Light_Command_Switch_Define(cmd_crush_font_add__opt_localfile, &cmd_crush_font_a
 #define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
-uint8_t crush_font_init()
+uint8_t crush_font_onload()
 {
         crush_common_register_context_object_loader(OBJECT_NAME, JSON_FILE,
                                         crush_font_create_context, crush_font_load_context);
@@ -106,6 +106,14 @@ struct crush_font *crush_font_context_get_by_name(struct crush_font_context *con
 }
 uint8_t crush_font_context_save(struct crush_font_context *context, struct crush_font *object)
 {
+        // if crush_font_save() is called on an object with no context attached, attach
+        // object to the current context
+        if(!context && !object->context)
+                context = object->context = crush_font_context();
+        if(!context)
+                context = object->context;
+        if(!object->context)
+                object->context = context;
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;
@@ -151,7 +159,7 @@ crush_json_t *crush_font_object_serialize(struct crush_font *font)
                         "s:O"           //      "files":
                 "}",
                 "name",         font->name,
-                "source_url",   font->source_url,
+                "source_url",   font->source,
                 "font_type",    font->font_type,
                 "files",        &files
                 );
@@ -174,7 +182,7 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
                         "s:O"           //      "files"
                 "}",
                 "name",         &font->name,
-                "source_url",   &font->source_url,
+                "source_url",   &font->source,
                 "font_type",    &font->font_type,
                 "font_version", &font->font_version,
                 "font_root",    &font->path,
@@ -194,18 +202,71 @@ uint32_t crush_font_get_id(struct crush_font *font)
 {
         return font->id;
 }
-// TODO properly fill in these accessors which generate information required by the rendering engine
-uint8_t *crush_font_get_target_file(struct crush_font *font)
+const uint8_t *crush_font_get_target_file(struct crush_font *font)
 {
-        return font->file[0];
+        return font->file[font->target_file];
 }
 uint8_t crush_font_get_target_face_index(struct crush_font *font)
 {
-        return 0;
+        return font->face_index;
 }
-uint8_t *crush_font_get_name(struct crush_font *font)
+const uint8_t *crush_font_get_name(struct crush_font *font)
 {
         return font->name;
+}
+bool crush_font_get_source_local(struct crush_font *font)
+{
+        return font->source_local;
+}
+
+void crush_font_init(struct crush_font *font, const uint8_t *name, const uint8_t *source_url, const uint8_t *font_type, const uint8_t *font_version)
+{
+        atomic_store(&font->state, CRUSH_FONT_STATE_NEW);
+        font->id = CRUSH_JSON_ID_NEW;
+        font->name = name;
+        font->source = source_url;
+        font->font_type = font_type;
+        font->font_version = font_version;
+        font->target_file = 0;
+        font->face_index = 0;
+        font->file_count = 0;
+        font->source_local = false;
+}
+void crush_font_init_local(struct crush_font *font, const uint8_t *name, const uint8_t *file_path, const uint8_t *font_type, const uint8_t *font_version)
+{
+        crush_font_init(font, name, file_path, font_type, font_version);
+        font->source_local = true;
+}
+void crush_font_set_id(struct crush_font *font, uint32_t id)
+{
+        font->id = id;
+}
+void *crush_font_set_name(struct crush_font *font, const uint8_t *name)
+{
+        font->name = name;
+}
+void crush_font_set_target_file(struct crush_font *font, const uint8_t *filename)
+{
+        for(uint8_t i = 0; i < font->file_count; i++) {
+                if(strcmp(font->file[i], filename)) {
+                        font->target_file = i;
+                        return;
+                }
+        }
+}
+void crush_font_set_target_face_index(struct crush_font *font, uint8_t index)
+{
+        // TODO it would be good to bounds-check this incoming value,
+        // if we can find a sensible boundary value to check against
+        font->face_index = index;
+}
+void crush_font_add_file(struct crush_font *font, const uint8_t *filename)
+{
+        if(font->file_count >= CRUSH_FONT_FILE_MAX){
+                light_error("cannot add file to font object '%s': max files reached for object", font->name);
+                return;
+        }
+        font->file[font->file_count++] = filename;
 }
 
 // shows information about the currently selected CRUSH_FONT, if any
@@ -215,7 +276,17 @@ static struct light_cli_invocation_result do_cmd_font(struct light_cli_invocatio
 }
 static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invocation *invoke)
 {
+        const uint8_t *font_file_path;
+        bool ov_localfile = light_cli_invocation_get_switch_value(invoke, COMMAND_FONT_ADD_OPT_LOCALFILE_NAME);
+        if(ov_localfile) {
+                font_file_path = light_cli_invocation_get_arg_value(invoke, 0);
+        } else {
+                light_error("crush font add with remote source is not yet implemented");
+                return Result_Error;
+        }
+
         struct crush_font *font = light_alloc(sizeof(struct crush_font));
+        
         return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke)
@@ -233,7 +304,7 @@ static struct light_cli_invocation_result do_cmd_font_info(struct light_cli_invo
         light_info("font name: '%s'", font->name);
         light_info("font type: '%s'", font->font_type);
         light_info("font version: '%s'", font->font_version);
-        light_info("source URL: '%s'", font->source_url);
+        light_info("source URL: '%s'", font->source);
         return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_list(struct light_cli_invocation *invoke)

@@ -57,6 +57,14 @@ static inline struct crush_render *crush_render_get_by_name(const uint8_t *name)
 }
 extern uint8_t crush_render_context_save(struct crush_render_context *context, struct crush_render *object);
 extern uint8_t crush_render_context_commit(struct crush_render_context *context);
+static inline uint8_t crush_render_save(struct crush_render *object)
+{
+        return crush_render_context_save(object->context, object);
+}
+static inline uint8_t crush_render_commit()
+{
+        return crush_render_context_commit(crush_render_context());
+}
 
 extern crush_json_t *crush_render_object_serialize(struct crush_render *font);
 extern struct crush_render *crush_render_object_deserialize(crush_json_t *data);
