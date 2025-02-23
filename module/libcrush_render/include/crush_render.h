@@ -29,6 +29,7 @@ struct crush_render_context {
 
 struct crush_render {
         struct crush_render_context *context;
+        crush_json_t *data;
         uint32_t id;
         uint8_t job_id;
         uint8_t *name;

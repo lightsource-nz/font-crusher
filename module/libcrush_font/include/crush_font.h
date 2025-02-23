@@ -18,6 +18,7 @@ Light_Command_Option_Declare(cmd_crush_font_add__opt_localfile, cmd_crush_font_a
 #define CRUSH_FONT_FILE_MAX                     8
 struct crush_font {
         uint32_t id;
+        crush_json_t *data;
         atomic_uchar state;
         bool source_local;
         struct crush_font_context *context;
@@ -78,6 +79,7 @@ extern uint8_t crush_font_get_target_face_index(struct crush_font *font);
 
 extern void crush_font_init(struct crush_font *font, const uint8_t *name, const uint8_t *source, const uint8_t *font_type, const uint8_t *font_version);
 extern void crush_font_init_local(struct crush_font *font, const uint8_t *name, const uint8_t *source, const uint8_t *font_type, const uint8_t *font_version);
+extern void crush_font_release(struct crush_font *object);
 extern void crush_font_set_id(struct crush_font *font, uint32_t id);
 extern void *crush_font_set_name(struct crush_font *font, const uint8_t *name);
 extern void crush_font_set_target_file(struct crush_font *font, const uint8_t *filename);

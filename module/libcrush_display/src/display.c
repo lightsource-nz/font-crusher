@@ -225,7 +225,8 @@ extern void crush_display_release(struct crush_display *display)
 void crush_display_init(struct crush_display *display, const uint8_t *name, const uint8_t *description,
                 uint16_t res_h, uint16_t res_v, uint16_t ppi_h, uint16_t ppi_v, uint8_t pixel_depth)
 {
-        display->id = CRUSH_JSON_ID_NEW;
+        atomic_store(&display->id, CRUSH_JSON_ID_NEW);
+        display->context = NULL;
         display->name = name;
         display->description = description;
         display->resolution_h = res_h;

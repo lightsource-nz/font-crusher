@@ -210,7 +210,7 @@ struct crush_render *crush_render_object_deserialize(crush_json_t *data)
                 "display",      &display_id,
                 "path",         &object->path
         );
-        json_decref(data);
+        object->data = data;
 
         object->font = crush_font_get(font_id);
         object->display = crush_display_get(display_id);
@@ -219,7 +219,7 @@ struct crush_render *crush_render_object_deserialize(crush_json_t *data)
 
 void crush_render_init(struct crush_render *render, struct crush_font *font, uint8_t font_size, struct crush_display *display, const uint8_t *name)
 {
-        render->state = CRUSH_RENDER_STATE_NEW;
+        atomic_store(&render->id, CRUSH_JSON_ID_NEW);
         render->id = CRUSH_JSON_LPRIME;
         render->job_id = RENDER_JOB_NEW;
         render->font = font;
@@ -232,6 +232,8 @@ void crush_render_init(struct crush_render *render, struct crush_font *font, uin
 }
 void crush_render_release(struct crush_render *render)
 {
+        if (render->data)
+                json_decref(render->data);
         light_free(render->name);
         light_free(render);
 }

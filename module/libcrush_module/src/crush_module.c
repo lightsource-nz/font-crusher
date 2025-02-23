@@ -121,15 +121,16 @@ bool crush_module_depends_on(struct crush_module *module, struct crush_module *o
         return depends_on_recurse(module, other, DEPENDENCY_MAX_DEPTH);
 }
 
-void crush_module_init(struct crush_module *module, struct crush_module_context *context, struct crush_module *parent, const uint8_t *name, const uint16_t version_seq, const uint8_t *source_url, const uint8_t *path)
+void crush_module_init(struct crush_module *module, struct crush_module *parent, const uint8_t *name, const uint16_t version_seq, const uint8_t *source_url, const uint8_t *path)
 {
-        module->context = context;
+        atomic_store(&module->id, CRUSH_JSON_ID_NEW);
+        atomic_store(&module->state, CRUSH_MODULE_STATE_NEW);
+        module->context = NULL;
         module->parent = parent;
         module->name = name;
         module->source_url = source_url;
         module->version_seq = version_seq;
         module->path = path;
-        module->state = CRUSH_MODULE_STATE_NEW;
         module->deps_count = 0;
         module->file_count = 0;
 }

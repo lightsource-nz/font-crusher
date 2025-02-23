@@ -223,6 +223,7 @@ void crush_font_init(struct crush_font *font, const uint8_t *name, const uint8_t
 {
         atomic_store(&font->state, CRUSH_FONT_STATE_NEW);
         font->id = CRUSH_JSON_ID_NEW;
+        font->context = NULL;
         font->name = name;
         font->source = source_url;
         font->font_type = font_type;
@@ -236,6 +237,12 @@ void crush_font_init_local(struct crush_font *font, const uint8_t *name, const u
 {
         crush_font_init(font, name, file_path, font_type, font_version);
         font->source_local = true;
+}
+void crush_font_release(struct crush_font *object)
+{
+        if(object->data)
+                json_decref(object->data);
+        light_free(object);
 }
 void crush_font_set_id(struct crush_font *font, uint32_t id)
 {

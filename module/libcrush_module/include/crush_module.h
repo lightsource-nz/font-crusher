@@ -31,6 +31,7 @@ struct crush_module_context {
 #define CRUSH_MODULE_DEPS_MAX           16
 struct crush_module {
         struct crush_module_context *context;
+        crush_json_t *data;
         uint32_t id;
         atomic_uchar state;
         const uint8_t *name;
@@ -59,7 +60,7 @@ extern uint8_t *crush_module_get_file(struct crush_module *module, uint8_t index
 extern bool crush_module_has_direct_dependency(struct crush_module *module, struct crush_module *other);
 extern bool crush_module_depends_on(struct crush_module *module, struct crush_module *other);
 
-extern void crush_module_init(struct crush_module *module, struct crush_module_context *context, struct crush_module *parent, const uint8_t *name, const uint16_t version_seq, const uint8_t *source_url, const uint8_t *path);
+extern void crush_module_init(struct crush_module *module, struct crush_module *parent, const uint8_t *name, const uint16_t version_seq, const uint8_t *source_url, const uint8_t *path);
 extern void crush_module_release(struct crush_module *module);
 // list accessors return LIGHT_NO_RESOURCE on list overflow
 extern uint8_t crush_module_add_dependency(struct crush_module *module, struct crush_module *dependency);
