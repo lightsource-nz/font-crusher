@@ -11,21 +11,22 @@ Light_Command_Declare(cmd_crush_font_info, cmd_crush_font);
 Light_Command_Declare(cmd_crush_font_list, cmd_crush_font);
 
 Light_Command_Option_Declare(cmd_crush_font_add__opt_localfile, cmd_crush_font_add);
+Light_Command_Option_Declare(cmd_crush_font_add__opt_face_index, cmd_crush_font_add);
 
 #define CRUSH_FONT_STATE_NEW                    0
+#define CRUSH_FONT_STATE_NEW_STR                "STATE_NEW"
 #define CRUSH_FONT_STATE_READY                  1
+#define CRUSH_FONT_STATE_READY_STR              "STATE_READY"
 
 #define CRUSH_FONT_FILE_MAX                     8
 struct crush_font {
         uint32_t id;
         crush_json_t *data;
         atomic_uchar state;
-        bool source_local;
+        bool source_is_local;
         struct crush_font_context *context;
         const uint8_t *name;
         const uint8_t *source;
-        const uint8_t *font_type;
-        const uint8_t *font_version;
         const uint8_t *path;
         uint8_t target_file;
         uint8_t face_index;
@@ -77,14 +78,17 @@ extern bool crush_font_get_source_local(struct crush_font *font);
 extern const uint8_t *crush_font_get_target_file(struct crush_font *font);
 extern uint8_t crush_font_get_target_face_index(struct crush_font *font);
 
-extern void crush_font_init(struct crush_font *font, const uint8_t *name, const uint8_t *source, const uint8_t *font_type, const uint8_t *font_version);
-extern void crush_font_init_local(struct crush_font *font, const uint8_t *name, const uint8_t *source, const uint8_t *font_type, const uint8_t *font_version);
+extern void crush_font_init(struct crush_font *font, const uint8_t *name, const uint8_t *source_url);
+extern void crush_font_init_local(struct crush_font *font, const uint8_t *name, const uint8_t *source);
 extern void crush_font_release(struct crush_font *object);
 extern void crush_font_set_id(struct crush_font *font, uint32_t id);
 extern void *crush_font_set_name(struct crush_font *font, const uint8_t *name);
 extern void crush_font_set_target_file(struct crush_font *font, const uint8_t *filename);
 extern void crush_font_set_target_face_index(struct crush_font *font, uint8_t index);
 extern void crush_font_add_file(struct crush_font *font, const uint8_t *filename);
+
+extern const uint8_t *crush_font_state_string(uint8_t state);
+extern uint8_t crush_font_state_code(const uint8_t *state_str);
 
 static inline struct light_command *crush_font_get_command()
 {

@@ -32,8 +32,8 @@ static inline void *crush_queue_peek(struct crush_queue *queue)
 }
 extern bool crush_queue_full(struct crush_queue *queue);
 extern bool crush_queue_empty(struct crush_queue *queue);
-extern void _crush_queue_get(struct crush_queue *queue, void **out);
-extern void _crush_queue_put(struct crush_queue *queue, void *item);
+extern uint8_t _crush_queue_get(struct crush_queue *queue, void **out);
+extern uint8_t _crush_queue_put(struct crush_queue *queue, void *item);
 extern uint8_t _crush_queue_put_nonblock(struct crush_queue *queue, void *item);
 extern uint8_t _crush_queue_get_nonblock(struct crush_queue *queue, void **out);
 

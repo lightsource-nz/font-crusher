@@ -26,7 +26,7 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job);
 static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap);
 static void worker__render_dump_glyph(struct render_job *job);
-static void signal__worker__render_job_signal_handler(int signo);
+static void signal__worker__render_engine_signal_handler(int signo);
 // signal handler to tell the foreground thread that a render job has completed
 static void signal__render_engine_signal_handler(int signo);
 
@@ -52,22 +52,12 @@ extern struct render_engine *render_engine_default()
 }
 uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bool launch)
 {
-        engine->engine_state = ENGINE_INIT;
+        atomic_store(&engine->engine_state, ENGINE_INIT);
         engine->name = name;
-        int err;
-        if(err = FT_Init_FreeType(&engine->freetype)) {
-                light_error("failed to initialise the freetype2 typesetting library: FT_Init_FreeType() returned value %d", err);
-                return LIGHT_EXTERNAL;
-        }
-        int major, minor, patch;
-        FT_Library_Version(engine->freetype, &major, &minor, &patch);
-        light_debug("loaded freetype2 version %d.%d.%d", major, minor, patch);
-
-        crush_queue_init(&engine->work_queue);
-        crush_queue_init(&engine->result_queue);
 
         if(launch) {
-                thrd_create(&engine->work_thread, worker__render_work_thread_main, engine);
+                atomic_store(&engine->engine_state, ENGINE_ONLINE);
+                thrd_create(&engine->work_thread, worker__render_work_thread_main, (void *)engine);
         }
         return LIGHT_OK;
 }
@@ -98,43 +88,54 @@ struct render_job *render_engine_get_job(struct render_engine *engine, uint8_t i
         }
         return NULL;
 }
+
+static int8_t render_job_file_indexof(const uint8_t **files, const uint8_t *name)
+{
+        for(uint8_t i = 0; i<  i < CRUSH_FONT_FILE_MAX; i++) {
+                if(strcmp(name, files[i]))
+                        return i;
+        }
+        return UINT8_MAX;
+}
 uint8_t render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), uint8_t *output_path)
 {
+        atomic_bool closed = atomic_load(&engine->flag_closed);
+        if(closed) {
+                light_warn("failed to queue new render job '%s': render engine '%s' already shutting down");
+                return LIGHT_STATE_INVALID;
+        }
         struct render_job *job = light_alloc(sizeof(struct render_job));
+        if(!job) {
+                light_debug("failed to queue new render job '%s': out of memory", name);
+                return LIGHT_NO_MEMORY;
+        }
         job->caller = thrd_current();
         job->name = name;
         job->font = font,
         job->font_size = font_size;
         job->display = target_display;
         job->output_path = output_path;
-        uint8_t queue_mode = atomic_load(&engine->queue_mode);
-        if(queue_mode == QUEUE_BLOCKING) {
-                crush_queue_put(&engine->work_queue, job);
-        } else {
-                uint8_t err = crush_queue_put_nonblock(&engine->work_queue, job);
-                if(err) {
-                        light_debug("failed to queue render job '%s'", job->name);
-                        return LIGHT_NO_RESOURCE;
-                }
+        uint8_t err = crush_queue_put(&engine->work_queue, job);
+        if(err) {
+                light_debug("failed to queue render job '%s'", job->name);
+                light_free(job);
+                return LIGHT_NO_RESOURCE;
         }
+        light_debug("render job '%s' queued successfully at system time %d", name, light_platform_get_time_since_init());
         return LIGHT_OK;
 }
-uint8_t **render_engine_collect_render_job(struct render_engine *engine)
+struct render_job *render_engine_collect_render_job(struct render_engine *engine)
 {
         struct render_job *job;
         crush_queue_get(&engine->result_queue, &job);
-        return job->result;
+        return job;
 }
-uint8_t **render_engine_try_collect_render_job(struct render_engine *engine)
+struct render_job *render_engine_try_collect_render_job(struct render_engine *engine)
 {
         struct render_job *job;
         if(crush_queue_get_nonblock(&engine->result_queue, &job))
                 return NULL;
-        return job->result;
-}
-static void signal__render_engine_signal_handler(int signo)
-{
-
+        return job;
 }
 void render_engine_cmd_set_mode(struct render_engine *engine, uint8_t mode)
 {
@@ -160,8 +161,7 @@ void render_engine_cmd_launch(struct render_engine *engine)
 }
 void render_engine_cmd_suspend_processing(struct render_engine *engine)
 {
-        // TODO most of this should happen inside the signal handler, on the worker stack
-        uint8_t engine_state = engine->engine_state;
+        uint8_t engine_state = atomic_load(&engine->engine_state);
         if(engine_state != ENGINE_ONLINE) {
                 light_warn("attempted to suspend '%s' when not in ONLINE state", render_engine_get_name(engine));
                 return;
@@ -174,52 +174,125 @@ void render_engine_cmd_suspend_processing(struct render_engine *engine)
                 light_warn("suspend failed: engine state changed unexpectedly");
         }
 }
-void render_engine_cmd_resume_processing(struct render_engine *engine);
-void render_engine_cmd_cancel_active_job(struct render_engine *engine);
+void render_engine_cmd_resume_processing(struct render_engine *engine)
+{
+        uint8_t engine_state = engine->engine_state;
+        if(engine_state != ENGINE_SUSPEND) {
+                light_warn("attempted to resume render engine '%s' when not in SUSPEND state", render_engine_get_name(engine));
+                return;
+        }
+        // if the CX operation fails, the engine is no longer in SUSPEND state, so no point in re-trying
+        if(atomic_compare_exchange_strong(&engine->engine_state, &engine_state, ENGINE_ONLINE)) {
+                light_debug("resuming render engine worker '%s'", render_engine_get_name(engine));
+                pthread_kill(engine->work_thread, SIGNAL_SUSPEND);
+        } else {
+                light_warn("resume failed: engine state changed unexpectedly");
+        }
+}
 void render_engine_cmd_shutdown(struct render_engine *engine)
 {
         light_debug("shutting down worker for render engine '%s'", engine->name);
         pthread_kill(engine->work_thread, SIGNAL_SHUTDOWN);
+        int exit_code;
+        thrd_join(engine->work_thread, &exit_code);
+        if(exit_code) {
+                light_debug("engine worker (for '%s') terminated with exit code", engine->name);
+        } else {
+                light_debug("engine worker (for '%s') terminated successfully", engine->name);
+        }
 }
+void render_engine_cmd_shutdown_async(struct render_engine *engine)
+{
+        light_debug("shutting down worker for render engine '%s'", engine->name);
+        pthread_kill(engine->work_thread, SIGNAL_SHUTDOWN);
+}
+void render_engine_cmd_wait_for_shutdown(struct render_engine *engine)
+{
+        light_debug("waiting for engine worker for '%s' to terminate", engine->name);
+        int exit_code;
+        thrd_join(engine->work_thread, &exit_code);
+        if(exit_code) {
+                light_debug("engine worker (for '%s') terminated with exit code", engine->name);
+        } else {
+                light_debug("engine worker (for '%s') terminated successfully", engine->name);
+        }
+}
+
 #define STATE_READ              0
 #define STATE_PROCESS           1
 // worker thread functions:
 // WARNING these functions should only be called from within the rendering engine's worker thread
 static thread_local struct render_engine *this_engine;
+static void worker__render_engine_event_handle(struct render_engine *engine);
 static int worker__render_work_thread_main(void *arg)
 {
         this_engine = (struct render_engine *)arg;
-        this_engine->engine_state = ENGINE_ONLINE;
+        atomic_store(&this_engine->engine_state, ENGINE_INIT);
+        int err;
+        if(err = FT_Init_FreeType(&this_engine->freetype)) {
+                light_error("failed to initialise the freetype2 typesetting library: FT_Init_FreeType() returned value %d", err);
+                return LIGHT_EXTERNAL;
+        }
+        int major, minor, patch;
+        FT_Library_Version(this_engine->freetype, &major, &minor, &patch);
+        light_debug("loaded freetype2 version %d.%d.%d", major, minor, patch);
+
+        crush_queue_init(&this_engine->work_queue);
+        crush_queue_init(&this_engine->result_queue);
+        atomic_store(&this_engine->engine_state, ENGINE_ONLINE);
         atomic_signal_fence(memory_order_release);
-        struct sigaction sigact;
-        sigact.sa_handler = signal__worker__render_job_signal_handler;
-        sigaction(SIGNAL_SUSPEND, &sigact, NULL);
+        struct sigaction sigact_suspend;
+        sigact_suspend.sa_handler = signal__worker__render_engine_signal_handler;
+        sigaction(SIGNAL_SUSPEND, &sigact_suspend, NULL);
+        struct sigaction sigact_shutdown;
+        sigact_shutdown.sa_handler = signal__worker__render_engine_signal_handler;
+        sigaction(SIGNAL_SHUTDOWN, &sigact_shutdown, NULL);
         while(1) {
                 atomic_store(&this_engine->engine_state_private, STATE_READ);
                 atomic_signal_fence(memory_order_release);
-                struct render_job *next_job;
-                while(!crush_queue_get_nonblock(&this_engine->result_queue, &next_job)) {
-                        atomic_store(&this_engine->engine_state_private, STATE_PROCESS);
-                        next_job->callback(next_job, next_job->cb_arg);
-                        atomic_store(&this_engine->engine_state_private, STATE_READ);
-                }
+                
+                worker__render_engine_event_handle(this_engine);
+                // check in case the queue was closed while the worker was sleeping
+                if(this_engine->flag_closed && crush_queue_empty(&this_engine->work_queue))
+                        break;
                 // this operation will block the worker thread when the queue is empty
                 crush_queue_get(&this_engine->work_queue, &this_engine->active_job);
-                // ASSERT(this_engine->active_job)
                 atomic_store(&this_engine->engine_state_private, STATE_PROCESS);
                 atomic_signal_fence(memory_order_release);
                 worker__render_job_process(this_engine, this_engine->active_job);
+                crush_queue_put(&this_engine->result_queue, this_engine->active_job);
+                this_engine->active_job = NULL;
+                if(this_engine->flag_closed && crush_queue_empty(&this_engine->work_queue)) {
+                        atomic_store(&this_engine->engine_state, ENGINE_HALT);
+                        break;
+                }
+        }
+        // at this point, the queue is closed and empty (i.e. all pending events have been processed)
+        // the worker thread just needs to release all resources it is holding and then terminate
+        FT_Done_FreeType(this_engine->freetype);
+        return LIGHT_OK;
+}
+// the length of this interval is somewhat arbitrary since the purpose is just to suspend
+// the thread until it receives a signal from an external source
+#define WORKER_SLEEP_INTERVAL_SEC       20
+static void worker__render_engine_event_handle(struct render_engine *engine)
+{
+        struct timespec interval = { .tv_sec = WORKER_SLEEP_INTERVAL_SEC };
+        atomic_bool suspend;
+        while(suspend = atomic_load(&engine->flag_suspend)){
+                thrd_sleep(&interval, NULL);
         }
 }
 static void worker__render_job_process(struct render_engine *engine, struct render_job *job)
 {
+        FT_Face face = NULL;
         // assert (job->state == JOB_READY)
         if(job->state != JOB_READY) {
                 light_error("render job not ready: %s", job->output_path);
         }
+        job->progress = UINT16_MAX;
         job->state = JOB_ACTIVE;
-        FT_Face face;
-        FT_Error err = FT_New_Face(engine->freetype, job->font->file[0], 0, &face);
+        FT_Error err = FT_New_Face(engine->freetype, job->font->file[job->font->target_file], job->font->face_index, &face);
         err = FT_Set_Char_Size(face, 0, job->font_size, job->display->ppi_h, job->display->ppi_v);
         uint8_t *char_list = RENDER_CHAR_SET;
         uint8_t num_glyphs = strlen(char_list);
@@ -229,6 +302,10 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 load_flags |= FT_LOAD_MONOCHROME;
         }
         for(uint8_t i = 0; i < num_glyphs; i++) {
+                job->progress = i;
+                atomic_signal_fence(memory_order_release);
+                // this may block the worker thread according to external events
+                worker__render_engine_event_handle(engine);
                 // err = FT_Load_Glyph(face, char_list[i], load_flags);
                 // FT_Outline_Translate(face->glyph->outline, face->glyph->metrics.)
                 err = FT_Load_Char(face, char_list[i], load_flags);
@@ -236,7 +313,10 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 //    but the value will be correct
                 job->res_pitch = face->glyph->bitmap.pitch;
                 job->result[i] = worker__render_job_copy_bitmap(face->glyph->bitmap);
+                FT_Done_Face(face);
         }
+        job->callback(job, job->cb_arg);
+        job->state = JOB_DONE;
 }
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job)
 {
@@ -276,27 +356,32 @@ static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap)
         return output_buffer;
 }
 // -> signal handler, handled on worker thread stack
-// -> SIGUSR1 is defined as a suspend signal, so we cancel any work in progress and halt workers
+// -> SIGUSR1 is defined as a suspend signal, so we pause any work in progress and halt workers
 // -> SIGUSR2 is defined as a shutdown signal, so we close the input side of the queue and process
 // all remaining jobs before halting
-static void signal__worker__render_job_signal_handler(int signo)
+static void signal__worker__render_engine_signal_handler(int signo)
 {
+        uint8_t flag_val;
         uint8_t engine_state = atomic_load(&this_engine->engine_state_private);
         switch (signo)
         {
         case SIGNAL_SUSPEND:
-                switch (engine_state)
-                {
-                // STATE_READ: thread is blocked and queue is empty, so we can safely exit
-                case STATE_READ:
-                        
-                        thrd_exit(WORKER_OK);
-                case STATE_PROCESS:
-                        break;
+                flag_val = false;
+                if(atomic_compare_exchange_strong(&this_engine->flag_suspend, &flag_val, true)) {
+                        // code in this section will run exactly once when the engine suspend state becomes true
+                } else {
+                        // code here runs only if the suspend flag was already set
+                        atomic_store(&this_engine->flag_suspend, false);
+                        return;
                 }
                 break;
         
         case SIGNAL_SHUTDOWN:
+                flag_val = false;
+                if(atomic_compare_exchange_strong(&this_engine->flag_closed, &flag_val, true)) {
+                        // code in this section will run exactly once when the engine shutdown state becomes true
+
+                }
                 break;
         }
 }

@@ -39,7 +39,7 @@ bool crush_queue_empty(struct crush_queue *queue)
 {
         return queue->read_head == QUEUE_NULL;
 }
-void _crush_queue_put(struct crush_queue *queue, void *item)
+uint8_t _crush_queue_put(struct crush_queue *queue, void *item)
 {
         mtx_lock(&queue->lock);
         while(queue->write_head == QUEUE_NULL) {
@@ -47,9 +47,9 @@ void _crush_queue_put(struct crush_queue *queue, void *item)
         }
         uint8_t index = atomic_fetch_add(&queue->write_head, 1);
         queue->cell[index] = item;
-        mtx_unlock(&queue->lock); 
+        mtx_unlock(&queue->lock);
 }
-void _crush_queue_get(struct crush_queue *queue, void **out)
+uint8_t _crush_queue_get(struct crush_queue *queue, void **out)
 {
         mtx_lock(&queue->lock);
         while (queue->read_head == QUEUE_NULL)
@@ -59,6 +59,7 @@ void _crush_queue_get(struct crush_queue *queue, void **out)
         uint8_t index = atomic_fetch_add(&queue->read_head, 1);
         *out = queue->cell[index];
         mtx_unlock(&queue->lock);
+        return QUEUE_OK;
 }
 uint8_t _crush_queue_put_nonblock(struct crush_queue *queue, void *item)
 {

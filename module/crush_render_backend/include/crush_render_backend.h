@@ -19,7 +19,8 @@
 #define ENGINE_INIT             -1
 #define ENGINE_ONLINE           0
 #define ENGINE_SUSPEND          1
-#define ENGINE_ERROR            2
+#define ENGINE_HALT             2
+#define ENGINE_ERROR            3
 
 // job state codes
 #define JOB_READY               0       // <- the state of new jobs in the queue
@@ -47,15 +48,15 @@ struct render_job {
         void *cb_arg;
         void (*callback)(struct render_job *, void *);
         uint8_t *output_path;
+        uint16_t progress;
         uint8_t res_pitch;
         uint8_t **result;
 };
 
 struct render_engine {
-        _Atomic struct {
-                uint8_t blocking:1;
-                uint8_t closed:1;
-        } flags;
+        atomic_bool flag_blocking;
+        atomic_bool flag_closed;
+        atomic_bool flag_suspend;
         const uint8_t *name;
         struct render_job *active_job;
         FT_Library freetype;
@@ -80,14 +81,14 @@ extern uint8_t render_engine_get_job_count(struct render_engine *engine);
 extern struct render_job *render_engine_get_job(struct render_engine *engine, uint8_t id);
 extern uint8_t render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), uint8_t *output_path);
 // this will block the calling thread until a job becomes available
-extern uint8_t **render_engine_collect_render_job(struct render_engine *engine);
+extern struct render_job *render_engine_collect_render_job(struct render_engine *engine);
 // this variant is nonblocking, and returns null if no jobs are waiting
-extern uint8_t **render_engine_try_collect_render_job(struct render_engine *engine);
+extern struct render_job *render_engine_try_collect_render_job(struct render_engine *engine);
 extern void render_engine_cmd_set_mode(struct render_engine *engine, uint8_t mode);
 extern void render_engine_cmd_launch(struct render_engine *engine);
 extern void render_engine_cmd_suspend_processing(struct render_engine *engine);
 extern void render_engine_cmd_resume_processing(struct render_engine *engine);
-extern void render_engine_cmd_cancel_active_job(struct render_engine *engine);
 extern void render_engine_cmd_shutdown(struct render_engine *engine);
+extern void render_engine_cmd_shutdown_async(struct render_engine *engine);
 
 #endif
