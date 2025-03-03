@@ -356,8 +356,9 @@ static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap)
         return output_buffer;
 }
 // -> signal handler, handled on worker thread stack
-// -> SIGUSR1 is defined as a suspend signal, so we pause any work in progress and halt workers
-// -> SIGUSR2 is defined as a shutdown signal, so we close the input side of the queue and process
+// -> SIGNAL_SUSPEND (SIGUSR1) is defined as a suspend signal, so we pause any work in progress and halt workers.
+//    if SIGNAL_SUSPEND is received again, we reset the suspend flag and resume processing
+// -> SIGNAL_SHUTDOWN (SIGUSR2) is defined as a shutdown signal, so we close the input side of the queue and process
 // all remaining jobs before halting
 static void signal__worker__render_engine_signal_handler(int signo)
 {
