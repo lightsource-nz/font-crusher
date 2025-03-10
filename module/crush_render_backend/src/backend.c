@@ -27,8 +27,6 @@ static void worker__render_job_complete(struct render_engine *engine, struct ren
 static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap);
 static void worker__render_dump_glyph(struct render_job *job);
 static void signal__worker__render_engine_signal_handler(int signo);
-// signal handler to tell the foreground thread that a render job has completed
-static void signal__render_engine_signal_handler(int signo);
 
 void render_backend_init()
 {
@@ -63,7 +61,7 @@ uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bo
 }
 uint8_t render_engine_get_engine_state(struct render_engine *engine)
 {
-        return engine->engine_state;
+        return atomic_load(&engine->engine_state);
 }
 const uint8_t *render_engine_get_name(struct render_engine *engine)
 {
@@ -71,7 +69,7 @@ const uint8_t *render_engine_get_name(struct render_engine *engine)
 }
 uint8_t render_engine_engine_is_online(struct render_engine *engine)
 {
-        return !engine->engine_state;
+        return atomic_load(&engine->engine_state) == ENGINE_ONLINE;
 }
 struct render_job *render_engine_get_active_job(struct render_engine *engine)
 {
