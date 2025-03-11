@@ -21,10 +21,10 @@
 #define COMMAND_FONT_LIST_DESCRIPTION "displays a list of all fonts stored in the local crush database"
 
 #define COMMAND_FONT_ADD_OPT_LOCALFILE_CODE             'l'
-#define COMMAND_FONT_ADD_OPT_LOCALFILE_NAME             "--local-file"
+#define COMMAND_FONT_ADD_OPT_LOCALFILE_NAME             "local-file"
 #define COMMAND_FONT_ADD_OPT_LOCALFILE_DESC             "indicates that the argument given is a path to a local file, not a URL"
 #define COMMAND_FONT_ADD_OPT_FACE_INDEX_CODE             'f'
-#define COMMAND_FONT_ADD_OPT_FACE_INDEX_NAME             "--face-index"
+#define COMMAND_FONT_ADD_OPT_FACE_INDEX_NAME             "face-index"
 #define COMMAND_FONT_ADD_OPT_FACE_INDEX_DESC             "indicates which typeface index should be selected from the given font file"
 
 static void print_usage_font();
@@ -84,7 +84,7 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
                 "type", &type,
                 "next_id", &font_ctx->next_id,
                 "contextFonts", &font_ctx->data);
-        if(!strcmp(type, OBJECT_NAME)) {
+        if(strcmp(type, OBJECT_NAME)) {
                 light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
         }
         crush_context_add_context_object(context, OBJECT_NAME, font_ctx);
@@ -190,15 +190,14 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
         crush_json_t *files_data;
         json_unpack(data, 
                 "{"
-
-                "s:s,"          //      "name":                 "font_creator.sans_helvetica"
-                "s:s,"          //      "state":                "STATE_NEW"
-                "s:b,"          //      "source_is_local"       false
-                "s:s,"          //      "source":               "git:https//github.com/font_creator/sans_helvetica"
-                "s:s,"          //      "path"                  "data/font/font_creator.sans_helvetica"
-                "s:s,"          //      "target_file"           "font_creator.sans_helvetica.ttf"
-                "s:i,"          //      "face_index"            0
-                "s:O"           //      "files":                [...]
+                        "s:s,"          //      "name":                 "font_creator.sans_helvetica"
+                        "s:s,"          //      "state":                "STATE_NEW"
+                        "s:b,"          //      "source_is_local"       false
+                        "s:s,"          //      "source":               "git:https//github.com/font_creator/sans_helvetica"
+                        "s:s,"          //      "path"                  "data/font/font_creator.sans_helvetica"
+                        "s:s,"          //      "target_file"           "font_creator.sans_helvetica.ttf"
+                        "s:i,"          //      "face_index"            0
+                        "s:O"           //      "files":                [...]
                 "}",
                 "name",         &font->name,
                 "source_url",   &font->source,
@@ -324,7 +323,7 @@ static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invoc
         const uint8_t *font_file_path;
         bool ov_localfile = light_cli_invocation_get_switch_value(invoke, COMMAND_FONT_ADD_OPT_LOCALFILE_NAME);
         if(ov_localfile) {
-                font_file_path = light_cli_invocation_get_arg_value(invoke, 1);
+                font_file_path = light_cli_invocation_get_arg_value(invoke, 0);
         } else {
                 light_error("crush font add with remote source is not yet implemented");
                 return Result_Error;
@@ -343,13 +342,20 @@ static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invoc
         err = FT_New_Face(freetype, font_file_path, face_index, &face);
         if(err) {
                 light_error("failed to load font file '%s', error message: %d", font_file_path, FT_Error_String(err));
+                FT_Done_FreeType(freetype);
                 return Result_Error;
         }
+        FT_Done_Face(face);
+        FT_Done_FreeType(freetype);
         light_info("loaded font file '%s' successfully", font_file_path);
 
         struct crush_font *font = light_alloc(sizeof(struct crush_font));
         crush_font_init_local(font, basename((char *)font_file_path), font_file_path);
         
+        // create an entry for our new font in the persistent object store, and then save our changes
+        crush_font_save(font);
+        crush_font_commit();
+
         return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke)
