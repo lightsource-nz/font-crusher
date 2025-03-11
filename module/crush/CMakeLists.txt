@@ -1,16 +1,22 @@
 
 add_executable(crush)
 
+set(COPY_CONTEXT ${COPY_CONTEXT} CACHE BOOL "Determines whether a Crush context should be copied into the build directory")
 # 
 if(COPY_CONTEXT)
 if(NOT DEFINED COPY_CONTEXT_NAME)
         set(COPY_CONTEXT_NAME "test_context_default")
 endif()
-add_custom_command(
-        TARGET crush POST_BUILDzsiux.5'
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${TEST_RESOURCE_DIR}/${COPY_CONTEXT_NAME}
-                ${CMAKE_BINARY_DIR}/.crush)
+        add_custom_command(
+                TARGET crush POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        ${TEST_RESOURCE_DIR}/${COPY_CONTEXT_NAME}
+                        ${CMAKE_BINARY_DIR}/.crush)
+else()
+        # we need to actively remove any context left by previous builds
+        add_custom_command(
+                TARGET crush POST_BUILD
+                COMMAND rm -r ${CMAKE_BINARY_DIR}/.crush)
 endif()
 
 target_include_directories(

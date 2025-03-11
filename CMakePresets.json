@@ -14,14 +14,40 @@
             "inherits": [
                 "conf-crush-base",
                 "conf-light-debug"
-            ]
+            ],
+            "cacheVariables": {
+                "COPY_CONTEXT": true,
+                "COPY_CONTEXT_NAME": "test_context_default"
+            }
+        },
+        {
+            "name": "conf-crush-debug-nocontext",
+            "inherits": [
+                "conf-crush-debug"
+            ],
+            "cacheVariables": {
+                "COPY_CONTEXT": false
+            }
         },
         {
             "name": "conf-crush-trace",
             "inherits": [
                 "conf-crush-base",
                 "conf-light-trace"
-            ]
+            ],
+            "cacheVariables": {
+                "COPY_CONTEXT": true,
+                "COPY_CONTEXT_NAME": "test_context_default"
+            }
+        },
+        {
+            "name": "conf-crush-trace-nocontext",
+            "inherits": [
+                "conf-crush-trace"
+            ],
+            "cacheVariables": {
+                "COPY_CONTEXT": false
+            }
         },
         {
             "name": "conf-crush-release",
@@ -38,8 +64,18 @@
             "targets": ["crush"]
         },
         {
+            "name": "build-crush-debug-nocontext",
+            "configurePreset": "conf-crush-debug-nocontext",
+            "targets": ["crush"]
+        },
+        {
             "name": "build-crush-trace",
             "configurePreset": "conf-crush-trace",
+            "targets": ["crush"]
+        },
+        {
+            "name": "build-crush-trace-nocontext",
+            "configurePreset": "conf-crush-trace-nocontext",
             "targets": ["crush"]
         },
         {
