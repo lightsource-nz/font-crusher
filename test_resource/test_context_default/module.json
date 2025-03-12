@@ -1,13 +1,6 @@
 {
         "version": 0,
-        "type": "crush:module",
-        "contextModules": [
-                {
-                        "name": "crush.core",
-                        "version_seq": 341252546,
-                        "version_string": "0.1.0",
-                        "mod_root": "modules/crush.core",
-                        "dependencies": []
-                }
-        ]
+        "type": "crush:font",
+        "next_id": 1681692777,
+        "contextFonts": []
 }

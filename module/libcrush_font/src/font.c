@@ -70,7 +70,11 @@ struct crush_font_context *crush_font_get_context(struct crush_context *root)
 }
 crush_json_t *crush_font_create_context()
 {
-        return json_pack(CONTEXT_OBJECT_NEW_FMT, "version", SCHEMA_VERSION, "type", OBJECT_NAME, "contextFonts");
+        return json_pack(CONTEXT_OBJECT_NEW_FMT,
+                "version",      SCHEMA_VERSION,
+                "type",         OBJECT_NAME,
+                "next_id",      crush_common_get_initial_counter_value(),
+                "contextFonts");
 }
 void crush_font_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data)
 {
