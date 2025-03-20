@@ -13,6 +13,7 @@ Light_Command_Declare(cmd_crush_module_load, cmd_crush_module);
 Light_Command_Declare(cmd_crush_module_unload, cmd_crush_module);
 
 struct crush_module_context {
+        light_mutex_t lock;
         struct crush_context *root;
         uint16_t version;
         atomic_uint_least32_t next_id;

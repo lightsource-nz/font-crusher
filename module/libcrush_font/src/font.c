@@ -82,6 +82,7 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
         uint8_t *type;
         json_error_t err;
         struct crush_font_context *font_ctx = light_alloc(sizeof(struct crush_font_context));
+        light_mutex_init(&font_ctx->lock);
         font_ctx->root = context;
         font_ctx->file_path = file_path;
         //json_decref(version_obj);
@@ -136,6 +137,8 @@ uint8_t crush_font_context_save(struct crush_font_context *context, struct crush
                 context = object->context;
         if(object->context == NULL)
                 object->context = context;
+        
+        light_mutex_do_lock(&context->lock);
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;
@@ -145,14 +148,17 @@ uint8_t crush_font_context_save(struct crush_font_context *context, struct crush
                 } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
                 object->id = id_old;
         } else {
-                light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
         }
         ID_To_String(id_str, object->id);
+        light_debug("saving object ID %s (raw: 0x%X), name: '%s'", id_str, object->id, object->name);
+ 
         object->data = crush_font_object_serialize(object);
         if(0 != json_object_set_new(context->data, id_str, object->data)) {
                 light_error("failed to save font ID 0x%8X, name: '%s'", object->id, object->name);
+                light_mutex_do_unlock(&context->lock);
                 return LIGHT_STORAGE;
         }
+        light_mutex_do_unlock(&context->lock);
         return LIGHT_OK;
 }
 uint8_t crush_font_context_commit(struct crush_font_context *context)

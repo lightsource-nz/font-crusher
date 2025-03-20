@@ -187,6 +187,7 @@ void crush_module_load_context(struct crush_context *context, const uint8_t *fil
 {
         uint8_t *type;
         struct crush_module_context *mod_ctx = light_alloc(sizeof(struct crush_module_context));
+        light_mutex_init(&mod_ctx->lock);
         mod_ctx->root = context;
         mod_ctx->file_path = file_path;
         double version_f, next_id_f;
@@ -235,6 +236,7 @@ uint8_t crush_module_context_save(struct crush_module_context *context, struct c
                 context = object->context;
         if(!object->context)
                 object->context = context;
+        light_mutex_do_lock(&context->lock);
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;
@@ -243,11 +245,17 @@ uint8_t crush_module_context_save(struct crush_module_context *context, struct c
                         id_new = crush_common_get_next_counter_value(id_old);
                 } while(!atomic_compare_exchange_weak(&context->next_id, &id_old, id_new));
                 object->id = id_old;
-        } else {
-                light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
         }
+        
         ID_To_String(id_str, object->id);
-        return json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, crush_module_object_serialize(object));
+        light_debug("saving object ID %s (raw: 0x%X), name: '%s'", id_str, object->id, object->name);
+        if(0 != json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, crush_module_object_serialize(object))) {
+                light_error("failed to save object ID 0x%8X, name: '%s'", object->id, object->name);
+                light_mutex_do_unlock(&context->lock);
+                return LIGHT_STORAGE;
+        }
+        light_mutex_do_unlock(&context->lock);
+        return LIGHT_OK;
 }
 uint8_t crush_module_context_commit(struct crush_module_context *context)
 {

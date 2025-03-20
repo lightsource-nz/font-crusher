@@ -26,6 +26,7 @@ struct crush_display {
 };
 
 struct crush_display_context {
+        light_mutex_t lock;
         struct crush_context *root;
         uint16_t version;
         crush_json_t *data;

@@ -37,6 +37,7 @@ struct crush_font {
 };
 
 struct crush_font_context {
+        light_mutex_t lock;
         struct crush_context *root;
         uint16_t version;
         const uint8_t *file_path;

@@ -75,6 +75,7 @@ void crush_display_load_context(struct crush_context *context, const uint8_t *fi
 {
         uint8_t *type;
         struct crush_display_context *display_context = light_alloc(sizeof(struct crush_display_context));
+        light_mutex_init(&display_context->lock);
         display_context->root = context;
         display_context->file_path = file_path;
         double version_f, next_id_f;
@@ -104,6 +105,7 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
 {
         const uint8_t *_key;
         json_t *_val;
+        light_mutex_do_lock(&ctx->lock);
         // TODO place sync barriers around access to the object store
         json_object_foreach(ctx->data, _key, _val) {
                 if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
@@ -113,6 +115,7 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
                 }
                 json_decref(_val);
         }
+        light_mutex_do_unlock(&ctx->lock);
 }
 uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object)
 {
@@ -124,6 +127,8 @@ uint8_t crush_display_context_save(struct crush_display_context *context, struct
                 context = object->context;
         if(!object->context)
                 object->context = context;
+        
+        light_mutex_do_lock(&context->lock);
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;
@@ -136,7 +141,13 @@ uint8_t crush_display_context_save(struct crush_display_context *context, struct
                 light_debug("saving object ID 0x%8X, name: '%s'", object->id, object->name);
         }
         ID_To_String(id_str, object->id);
-        return json_object_set_new(context->data, id_str, crush_display_object_serialize(object));
+        if(0 != json_object_set_new(context->data, id_str, crush_display_object_serialize(object))) {
+                light_mutex_do_unlock(&context->lock);
+                light_warn("save operation failed for object ID 0x%X, name: '%s'", object->id, object->name);
+                return LIGHT_STORAGE;
+        }
+        light_mutex_do_unlock(&context->lock);
+        return LIGHT_OK;
 }
 uint8_t crush_display_context_commit(struct crush_display_context *context)
 {

@@ -20,6 +20,7 @@ Light_Command_Option_Declare(opt_crush_render_new_font, &cmd_crush_render_new);
 Light_Command_Option_Declare(opt_crush_render_new_display, &cmd_crush_render_new);
 
 struct crush_render_context {
+        light_mutex_t lock;
         const struct crush_context *root;
         const uint8_t *file_path;
         uint16_t version;
