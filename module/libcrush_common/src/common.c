@@ -195,24 +195,26 @@ bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *conte
         context->path = real_path;
         context->parent = current_context;
         current_context = context;
+        //light_debug("root context object: \n%s", json_dumps(context_root_json, (JSON_INDENT(8) | JSON_ENSURE_ASCII)));
         for(uint8_t i = 0; i < next_loader; i++) {
                 const uint8_t *object_file;
-                if( 0 != json_unpack(context_root_json,
+                json_error_t err;
+                if( 0 != json_unpack_ex(context_root_json, &err, 0,
                                 "{s:{s:s}}", "contextObjects", loader[i].name, &object_file)) {
-                        light_debug("context object loader for object type '%s' did not find object storage filename", loader[i].name);
+                        light_warn("context object loader for object type '%s' did not find matching context entry", loader[i].name);
+                        light_debug("json load error: %s:%d:%d: %s", err.source, err.line, err.column, err.text);
                         continue;
                 }
                 const uint8_t *object_path = realpath(crush_path_join(context->path, object_file), NULL);
-                json_error_t err;
                 // NOTE the receiving object loader becomes the owner of the json object and is responsible
                 // for de-referencing it when it is no longer needed
-                crush_json_t *object_json = json_load_file(object_path, JSON_INDENT(8) | JSON_ENSURE_ASCII, &err);
+                crush_json_t *object_json = json_load_file(object_path, (JSON_INDENT(8) | JSON_ENSURE_ASCII | JSON_DECODE_INT_AS_REAL), &err);
                 if(!object_json) {
                         light_warn("context object loader for object type '%s' failed to load object storage file '%s'", loader[i].name, object_file);
-                        light_warn("json load error: %s:%d:%d: %s", err.source, err.line, err.column, err.text);
+                        light_debug("json load error: %s:%d:%d: %s", err.source, err.line, err.column, err.text);
                         continue;
                 }
-                loader[i].load(context, object_file, object_json);
+                loader[i].load(context, object_path, object_json);
         }
         
         // before return we should release the in-memory JSON object structure
@@ -286,7 +288,7 @@ void crush_context_add_context_object(struct crush_context *context, uint8_t *na
 void *crush_context_get_context_object(struct crush_context *context, uint8_t *name)
 {
         for(uint8_t i = 0; i < context->object_count; i++) {
-                if(strcmp(context->object[i].name, name)) {
+                if(!strcmp(context->object[i].name, name)) {
                         return context->object[i].object;
                 }
         }

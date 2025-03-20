@@ -5,13 +5,14 @@ set(COPY_CONTEXT ${COPY_CONTEXT} CACHE BOOL "Determines whether a Crush context 
  
 # we need to actively remove any context left by previous builds
 add_custom_command(
-        TARGET crush POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_BINARY_DIR}/.crush
-        COMMAND rm -r ${CMAKE_BINARY_DIR}/.crush)
+        TARGET crush PRE_LINK
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/.crush
+        COMMAND ${CMAKE_COMMAND} -E rm -r ${CMAKE_BINARY_DIR}/.crush
+        )
 if(COPY_CONTEXT)
-if(NOT DEFINED COPY_CONTEXT_NAME)
-        set(COPY_CONTEXT_NAME "test_context_default")
-endif()
+        if(NOT DEFINED COPY_CONTEXT_NAME)
+                set(COPY_CONTEXT_NAME "test_context_default")
+        endif()
         add_custom_command(
                 TARGET crush POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_directory

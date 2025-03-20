@@ -47,7 +47,8 @@ static void callback__render_job_done(struct render_job *job, void *arg);
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_RENDER_CONTEXT_OBJECT_NAME
 
-#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
+#define CONTEXT_OBJECT_FMT "{s:f,s:s,s:f,s:O}"
+#define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
 void crush_render_module_load()
@@ -90,15 +91,17 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         struct crush_render_context *render_ctx = light_alloc(sizeof(struct crush_render_context));
         render_ctx->root = context;
         render_ctx->file_path = file_path;
-        json_unpack(
-                data,
-                CONTEXT_OBJECT_FMT,
-                "version", &render_ctx->version, "type", &type, "next_id", &render_ctx->next_id,
+        double version_f, next_id_f;
+        json_unpack(data, CONTEXT_OBJECT_FMT,
+                "version",      &version_f,
+                "type",         &type,
+                "next_id",      &next_id_f,
                 "contextRenders", &render_ctx->data);
-        json_decref(data);
-        if(!strcmp(type, OBJECT_NAME)) {
+        if(strcmp(type, OBJECT_NAME)) {
                 light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
         }
+        render_ctx->version = (uint16_t) version_f;
+        render_ctx->next_id = (uint32_t) next_id_f;
         crush_context_add_context_object(context, CRUSH_MODULE_CONTEXT_OBJECT_NAME, render_ctx);
 }
 struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint32_t id)
@@ -152,7 +155,7 @@ uint8_t crush_render_context_commit(struct crush_render_context *context)
 {
         light_debug("writing context '%s' to disk", context->file_path);
         ID_To_String(id_str, context->next_id);
-        json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT,
+        json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT_WRITE,
                                         "version",              context->version,
                                         "type",                 CRUSH_FONT_CONTEXT_OBJECT_NAME,
                                         "next_id",              context->next_id,
@@ -334,7 +337,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
                 light_error("command 'crush render new' called without setting either '--font' option or ${CRUSH_FONT} environment variable");
                 return Result_Error;
         }
-        struct crush_font *font = crush_font_get_by_name(str_font);
+        struct crush_font *font = crush_font_get_by_name((uint8_t *)str_font);
         if(!font) {
                 light_error("could not find font object with name '%s'", str_font);
                 return Result_Error;

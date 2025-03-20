@@ -34,8 +34,9 @@ Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY
 #define OBJECT_NAME CRUSH_DISPLAY_CONTEXT_OBJECT_NAME
 #define JSON_FILE CRUSH_DISPLAY_CONTEXT_JSON_FILE
 
-#define CONTEXT_OBJECT_FMT "{s:i,s:s,s:i,s:O}"
-#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
+#define CONTEXT_OBJECT_FMT "{s:f,s:s,s:f,s:O}"
+#define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
+#define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:{}}"
 
 uint8_t crush_display_onload()
 {
@@ -76,15 +77,18 @@ void crush_display_load_context(struct crush_context *context, const uint8_t *fi
         struct crush_display_context *display_context = light_alloc(sizeof(struct crush_display_context));
         display_context->root = context;
         display_context->file_path = file_path;
+        double version_f, next_id_f;
         json_unpack(json,
                 CONTEXT_OBJECT_FMT,
-                "version", &display_context->version,
+                "version", &version_f,
                 "type", &type,
-                "next_id", &display_context->next_id,
-                "contextFonts", &display_context->data);
-        if(!strcmp(type, OBJECT_NAME)) {
+                "next_id", &next_id_f,
+                "contextDisplays", &display_context->data);
+        if(strcmp(type, OBJECT_NAME)) {
                 light_fatal("attempted to load object store of type '%s' (expected '%s')", type, OBJECT_NAME);
         }
+        display_context->version = (uint16_t) version_f;
+        display_context->next_id = (uint32_t) next_id_f;
         crush_context_add_context_object(context, OBJECT_NAME, (void *)display_context);
 }
 struct crush_display *crush_display_context_get(struct crush_display_context *context, uint32_t id)
@@ -137,11 +141,11 @@ uint8_t crush_display_context_save(struct crush_display_context *context, struct
 uint8_t crush_display_context_commit(struct crush_display_context *context)
 {
         light_debug("saving context to file '%s'", context->file_path);
-        json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT,
+        json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT_WRITE,
                                         "version",              context->version,
                                         "type",                 OBJECT_NAME,
                                         "next_id",              context->next_id,
-                                        "contextRenders",       context->data);
+                                        "contextDisplays",       context->data);
         int obj_file_handle = open(context->file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));
         json_dumpfd(obj_data, obj_file_handle, (JSON_INDENT(8) | JSON_ENSURE_ASCII));
         json_decref(obj_data);

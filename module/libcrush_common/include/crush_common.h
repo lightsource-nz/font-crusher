@@ -56,7 +56,6 @@
 
 struct crush_context_object {
         uint8_t *name;
-        uint8_t *filename;
         void *object;
 };
 struct crush_context {
@@ -91,6 +90,10 @@ extern bool crush_context_try_load_from_path(uint8_t *path, struct crush_context
 extern void crush_context_create_under_path(uint8_t *path, struct crush_context *context);
 extern void crush_context_add_context_object(struct crush_context *context, uint8_t *name, void *object);
 extern void *crush_context_get_context_object(struct crush_context *context, uint8_t *name);
+static inline uint8_t *crush_context_get_context_root_path(struct crush_context *context)
+{
+        return context->path;
+}
 // filesystem paths API
 extern uint8_t *crush_path_join(const uint8_t *path0, const uint8_t *path1);
 // NOTE the caller must always ensure that n is equal to the number of variadic arguments
