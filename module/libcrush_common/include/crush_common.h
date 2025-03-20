@@ -32,8 +32,8 @@
 #define CRUSH_JSON_INCREMENT                    (INT_MAX - CRUSH_JSON_LPRIME)
 #define CRUSH_JSON_ID_NEW                       CRUSH_JSON_LPRIME
 #define ID_To_String(sym, id) \
-                uint8_t sym[CRUSH_JSON_KEY_LENGTH]; \
-                snprintf(sym, CRUSH_JSON_KEY_LENGTH, "%X", id);
+                uint8_t sym[CRUSH_JSON_KEY_LENGTH + 1]; \
+                snprintf(sym, CRUSH_JSON_KEY_LENGTH + 1, "%X", id);
 #define String_To_ID(string) strtoul(string, NULL, 16)
 // object IDs are a hex conversion of a 32-bit counter value, 8 byte fixed-length strings
 #define CRUSH_JSON_KEY_LENGTH                   8

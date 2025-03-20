@@ -41,6 +41,7 @@ struct crush_font_context {
         struct crush_context *root;
         uint16_t version;
         const uint8_t *file_path;
+        uint8_t *subdir_path;
         uint32_t next_id;
         crush_json_t *data;
 };
@@ -50,6 +51,7 @@ extern struct crush_font_context *crush_font_context();
 extern struct crush_font_context *crush_font_get_context(struct crush_context *root);
 extern crush_json_t *crush_font_create_context();
 extern void crush_font_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
+extern void crush_font_release_context(struct crush_font_context *context);
 extern struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint32_t id);
 extern struct crush_font *crush_font_context_get_by_name(struct crush_font_context *context, uint8_t *name);
 static inline struct crush_font *crush_font_get(const uint32_t id)
@@ -93,6 +95,7 @@ extern void crush_font_init_local(struct crush_font *font, uint8_t *name, uint8_
 extern void crush_font_init_remote_ctx(struct crush_font_context *context, struct crush_font *font, uint8_t *name, uint8_t *source_url, uint8_t *file_name);
 extern void crush_font_init_remote(struct crush_font *font, uint8_t *name, uint8_t *source_url, uint8_t *file_name);
 extern void crush_font_release(struct crush_font *object);
+extern uint8_t crush_font_process(struct crush_font *object);
 extern void crush_font_set_id(struct crush_font *font, uint32_t id);
 extern void *crush_font_set_name(struct crush_font *font, uint8_t *name);
 extern void crush_font_set_target_file(struct crush_font *font, uint8_t *filename);
