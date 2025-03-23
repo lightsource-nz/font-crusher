@@ -315,7 +315,7 @@ void crush_font_init_ctx(struct crush_font_context *context, struct crush_font *
         font->id = CRUSH_JSON_ID_NEW;
         font->context = context;
         font->name = strndup(name, FONT_NAME_LENGTH);
-        font->source = strndup(source, SOURCE_FIELD_LENGTH);
+        font->source = source;
         font->target_file = 0;
         font->face_index = 0;
         font->file_count = 0;
@@ -326,7 +326,7 @@ void crush_font_init_local_ctx(struct crush_font_context *context, struct crush_
         // resolve storage paths and determine where the font files will be copied to
         font->path = crush_path_join(crush_font_context_get_root_path(context), basename((uint8_t *)file_path));
         // TODO add copy/download step to font object state machine, for local and remote variants
-        crush_font_init_ctx(context, font, name, file_path);
+        crush_font_init_ctx(context, font, name, realpath(file_path, NULL));
         font->source_is_local = true;
         crush_font_add_file(font, basename((uint8_t *)file_path));
 }
@@ -487,7 +487,6 @@ static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invoc
                 // implement git clone of remote font repo
                 return Result_Success;
         }
-
 }
 static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke)
 {
