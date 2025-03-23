@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <crush.h>
 
 #include <jansson.h>
@@ -5,6 +6,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <libgen.h>
+#include <errno.h>
+#include <dirent.h>
 
 #include <freetype2/ft2build.h>
 #include <freetype/freetype.h>
@@ -82,7 +85,7 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
         uint8_t *type;
         json_error_t err;
         struct crush_font_context *font_ctx = light_alloc(sizeof(struct crush_font_context));
-        light_mutex_init(&font_ctx->lock);
+        light_mutex_init_recursive(&font_ctx->lock);
         font_ctx->root = context;
         font_ctx->file_path = file_path;
         font_ctx->subdir_path = crush_path_join(context->path, CRUSH_FONT_CONTEXT_SUBDIR_NAME);
@@ -113,6 +116,7 @@ void crush_font_release_context(struct crush_font_context *context)
 }
 struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint32_t id)
 {
+        light_mutex_do_lock(&context->lock);
         ID_To_String(id_str, id);
         crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
         struct crush_font *result = crush_font_object_deserialize(obj_data);
@@ -145,8 +149,11 @@ uint8_t crush_font_context_save(struct crush_font_context *context, struct crush
                 object->context = context;
         
         light_mutex_do_lock(&context->lock);
+        if(crush_font_context_find_by_name(context, object->name) != NULL) {
+
+        }
         if(object->id == CRUSH_JSON_ID_NEW) {
-                light_debug("saving new object, name: '%s'", object->name);
+                light_debug("saving new object '%s'", object->name);
                 uint32_t id_old, id_new;
                 do {
                         id_old = context->next_id;
@@ -156,11 +163,11 @@ uint8_t crush_font_context_save(struct crush_font_context *context, struct crush
         } else {
         }
         ID_To_String(id_str, object->id);
-        light_debug("saving object ID %s (raw: 0x%X), name: '%s'", id_str, object->id, object->name);
+        light_debug("saving object '%s' (ID: 0x%s)", object->name, id_str);
  
         object->data = crush_font_object_serialize(object);
         if(0 != json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, object->data)) {
-                light_error("failed to save font ID 0x%8X, name: '%s'", object->id, object->name);
+                light_error("failed to save font '%s' (ID: 0x%s)", object->name, id_str);
                 light_mutex_do_unlock(&context->lock);
                 return LIGHT_STORAGE;
         }
@@ -221,6 +228,7 @@ crush_json_t *crush_font_object_serialize(struct crush_font *font)
         return obj;
 }
 // ==> struct crush_font *crush_font_object_deserialize(crush_json_t data)
+//   this function consumes the object reference passed to it
 //   we may come back and implement full custom field extraction for objects of differing
 // font_type values, but for now all font objects are expected to have the same fields
 struct crush_font *crush_font_object_deserialize(crush_json_t *data)
@@ -254,7 +262,7 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
         json_array_foreach(files_data, i, file_value) {
                 json_unpack(file_value, "s", &font->file[i]);
         }
-        json_decref(data);
+        font->data = data;
 
         return font;
 }
@@ -288,6 +296,7 @@ struct crush_font *crush_font_context_find_by_name(struct crush_font_context *co
                 json_t *_name = json_object_get(_val, "name");
                 if(!strcmp(json_string_value(_name), "name")) {
                         json_decref(_name);
+                        light_mutex_do_unlock(&context->lock);
                         return crush_font_object_deserialize(_val);
                 }
         }
@@ -300,18 +309,17 @@ uint8_t *crush_font_context_get_root_path(struct crush_font_context *context)
 #define FONT_NAME_LENGTH        64
 #define SOURCE_FIELD_LENGTH     64
 #define FILE_NAME_LENGTH        64
-void crush_font_init_ctx(struct crush_font_context *context, struct crush_font *font, uint8_t *name, uint8_t *source_url)
+void crush_font_init_ctx(struct crush_font_context *context, struct crush_font *font, uint8_t *name, uint8_t *source)
 {
         atomic_store(&font->state, CRUSH_FONT_STATE_NEW);
         font->id = CRUSH_JSON_ID_NEW;
         font->context = context;
         font->name = strndup(name, FONT_NAME_LENGTH);
-        font->source = strndup(source_url, SOURCE_FIELD_LENGTH);
+        font->source = strndup(source, SOURCE_FIELD_LENGTH);
         font->target_file = 0;
         font->face_index = 0;
         font->file_count = 0;
         font->path = crush_path_join(crush_font_context_get_root_path(context), name);
-
 }
 void crush_font_init_local_ctx(struct crush_font_context *context, struct crush_font *font, uint8_t *name, uint8_t *file_path)
 {
@@ -373,7 +381,7 @@ void crush_font_set_target_face_index(struct crush_font *font, uint8_t index)
 }
 void crush_font_add_file(struct crush_font *font, uint8_t *filename)
 {
-        if(font->file_count >= CRUSH_FONT_FILE_MAX){
+        if(font->file_count >= CRUSH_FONT_FILE_MAX) {
                 light_error("cannot add file to font object '%s': max files reached for object", font->name);
                 return;
         }
@@ -387,6 +395,10 @@ const uint8_t *crush_font_state_string(uint8_t state)
                 return CRUSH_FONT_STATE_NEW_STR;
                 case CRUSH_FONT_STATE_READY:
                 return CRUSH_FONT_STATE_READY_STR;
+                case CRUSH_FONT_STATE_COPY:
+                return CRUSH_FONT_STATE_COPY_STR;
+                case CRUSH_FONT_STATE_ERROR:
+                return CRUSH_FONT_STATE_ERROR_STR;
         }
 }
 uint8_t crush_font_state_code(const uint8_t *state_str)
@@ -442,11 +454,40 @@ static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invoc
         struct crush_font *font = light_alloc(sizeof(struct crush_font));
         crush_font_init_local(font, basename((char *)font_file_path), font_file_path);
         
+        font->state = CRUSH_FONT_STATE_COPY;
         // create an entry for our new font in the persistent object store, and then save our changes
         crush_font_save(font);
         crush_font_commit();
 
-        return Result_Success;
+        uint8_t *font_db_path = crush_font_context_get_root_path(crush_font_context());
+        DIR *db_dir = opendir(font_db_path);
+        if(db_dir == NULL) {
+                if(0 != mkdir(font_db_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) {
+                        light_error("failed to create font database directory at path '%s': [%s] %s", font_db_path, strerrorname_np(errno), strerror(errno));
+                        return Result_Error;
+                }
+        } else {
+                closedir(db_dir);
+        }
+        if(ov_localfile) {
+                if(0 != mkdir(font->path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) && errno != EEXIST) {
+                        light_error("failed to create font storage directory at path '%s': [%s] %s", font->path, strerrorname_np(errno), strerror(errno));
+                        return Result_Error;
+                }
+                uint8_t *font_file_dest = crush_path_join(font->path, font->name);
+                if(0 != crush_file_copy(font_file_dest, font_file_path)) {
+                        light_error("failed to copy font file '%s' to crush database storage path '%s': [%s] %s", font->name, font_file_dest, strerrorname_np(errno), strerror(errno));
+                        return Result_Error;
+                }
+                font->state = CRUSH_FONT_STATE_READY;
+                crush_font_save(font);
+                crush_font_commit();
+                return Result_Success;
+        } else {
+                // implement git clone of remote font repo
+                return Result_Success;
+        }
+
 }
 static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke)
 {

@@ -17,8 +17,12 @@ Light_Command_Option_Declare(cmd_crush_font_add__opt_face_index, cmd_crush_font_
 
 #define CRUSH_FONT_STATE_NEW                    0
 #define CRUSH_FONT_STATE_NEW_STR                "STATE_NEW"
-#define CRUSH_FONT_STATE_READY                  1
+#define CRUSH_FONT_STATE_COPY                   1
+#define CRUSH_FONT_STATE_COPY_STR               "STATE_COPY"
+#define CRUSH_FONT_STATE_READY                  2
 #define CRUSH_FONT_STATE_READY_STR              "STATE_READY"
+#define CRUSH_FONT_STATE_ERROR                  3
+#define CRUSH_FONT_STATE_ERROR_STR              "STATE_ERROR"
 
 #define CRUSH_FONT_FILE_MAX                     8
 struct crush_font {

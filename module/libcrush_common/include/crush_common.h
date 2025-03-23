@@ -94,6 +94,7 @@ static inline uint8_t *crush_context_get_context_root_path(struct crush_context 
 {
         return context->path;
 }
+uint8_t crush_file_copy(const char *to, const char *from);
 // filesystem paths API
 extern uint8_t *crush_path_join(const uint8_t *path0, const uint8_t *path1);
 // NOTE the caller must always ensure that n is equal to the number of variadic arguments
