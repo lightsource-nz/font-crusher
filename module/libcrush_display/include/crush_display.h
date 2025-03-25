@@ -5,7 +5,7 @@
 #define CRUSH_DISPLAY_CONTEXT_JSON_FILE         "display.json"
 
 Light_Command_Declare(cmd_crush_display, cmd_crush);
-Light_Command_Declare(cmd_crush_display_import, cmd_crush_display);
+Light_Command_Declare(cmd_crush_display_add, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_info, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_list, cmd_crush_display);
 Light_Command_Declare(cmd_crush_display_remove, cmd_crush_display);
@@ -18,8 +18,8 @@ struct crush_display {
         const uint8_t *description;
         uint16_t resolution_h;
         uint16_t resolution_v;
-        uint16_t ppi_h;
-        uint16_t ppi_v;
+        double ppi_h;
+        double ppi_v;
         uint8_t pixel_depth;
         double height_mm;
         double width_mm;
@@ -65,7 +65,7 @@ extern struct crush_display *crush_display_object_deserialize(crush_json_t *data
 extern void crush_display_release(struct crush_display *display);
 
 extern void crush_display_init(struct crush_display *display, const uint8_t *name, const uint8_t *description,
-        uint16_t res_h, uint16_t res_v, uint16_t ppi_h, uint16_t ppi_v, uint8_t pixel_depth);
+        uint16_t res_h, uint16_t res_v, double ppi_h, double ppi_v, uint8_t pixel_depth);
 extern uint32_t crush_display_get_id(struct crush_display *display);
 extern const uint8_t *crush_display_get_name(struct crush_display *display);
 
@@ -78,7 +78,7 @@ static inline struct light_command *crush_display_get_command()
 }
 static inline struct light_command *crush_display_get_subcommand_import()
 {
-        return &cmd_crush_display_import;
+        return &cmd_crush_display_add;
 }
 static inline struct light_command *crush_display_get_subcommand_info()
 {

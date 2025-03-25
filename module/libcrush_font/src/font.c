@@ -127,14 +127,16 @@ struct crush_font *crush_font_context_get_by_name(struct crush_font_context *con
 {
         const char *key;
         json_t *value;
+        light_mutex_do_lock(&context->lock);
         json_object_foreach(context->data, key, value) {
                 if(strcmp(json_string_value(json_object_get(value, "name")), name)) {
+                        light_mutex_do_unlock(&context->lock);
                         struct crush_font *out = crush_font_object_deserialize(value);
-                        json_decref(value);
                         return out;
                 }
                 json_decref(value);
         }
+        light_mutex_do_unlock(&context->lock);
         return NULL;
 }
 uint8_t crush_font_context_save(struct crush_font_context *context, struct crush_font *object)
@@ -237,7 +239,7 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
         struct crush_font *font = light_alloc(sizeof(struct crush_font));
         crush_json_t *files_data;
 
-        json_unpack(data, 
+        int failed = json_unpack(data, 
                 "{"
                         "s:s,"          //      "name":                 "font_creator.sans_helvetica"
                         "s:s,"          //      "state":                "STATE_NEW"
@@ -257,6 +259,10 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
                 "face_index",   &font->face_index,
                 "files",        &files_data
         );
+        if(failed) {
+                light_error("json object decode failed: json_unpack returned nonzero value");
+                return NULL;
+        }
         uint8_t i;
         json_t *file_value;
         json_array_foreach(files_data, i, file_value) {

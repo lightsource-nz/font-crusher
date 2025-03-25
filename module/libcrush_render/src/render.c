@@ -353,6 +353,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         const uint8_t *str_display = light_cli_invocation_get_option_value(invoke, OPTION_RENDER_NEW_DISPLAY_NAME);
         if(!str_display) {
                 str_display = light_platform_getenv(CRUSH_EV_DISPLAY);
+                if(str_display) light_debug("${CRUSH_DISPLAY} is set to '%s'", str_display);
         }
         if(!str_display) {
                 light_error("command 'crush render new' called without setting either '--display' option or ${CRUSH_DISPLAY} environment variable");
@@ -360,7 +361,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         }
         struct crush_display *display = crush_display_get_by_name(str_display);
         if(!display) {
-                light_error("could not find display object with ID '%s'", str_display);
+                light_error("could not find display object with name '%s'", str_display);
                 return Result_Error;
         }
         light_info("creating new render job '%s-%s", font->name, display->name);

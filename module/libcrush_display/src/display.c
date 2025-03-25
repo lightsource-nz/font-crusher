@@ -7,26 +7,25 @@
 
 #define COMMAND_DISPLAY_NAME                    "display"
 #define COMMAND_DISPLAY_DESCRIPTION             "command used to interact with entries in the crush display database"
-#define COMMAND_DISPLAY_IMPORT_NAME             "import"
-#define COMMAND_DISPLAY_IMPORT_DESCRIPTION      "command used to add new display device entries to the local database"
+#define COMMAND_DISPLAY_ADD_NAME                "add"
+#define COMMAND_DISPLAY_ADD_DESCRIPTION         "command used to add new display device entries to the local database"
 #define COMMAND_DISPLAY_INFO_NAME               "info"
 #define COMMAND_DISPLAY_INFO_DESCRIPTION        "command used to show information about a specific display device entry"
 #define COMMAND_DISPLAY_LIST_NAME               "list"
 #define COMMAND_DISPLAY_LIST_DESCRIPTION        "command used to list all entries in the display database"
 
-static struct light_command *cmd_display;
-static struct light_command *cmd_display_import;
-static struct light_command *cmd_display_info;
-static struct light_command *cmd_display_list;
-
 static void print_usage_context();
 static struct light_cli_invocation_result do_cmd_display(struct light_cli_invocation *command);
-static struct light_cli_invocation_result do_cmd_display_import(struct light_cli_invocation *command);
+static struct light_cli_invocation_result do_cmd_display_add(struct light_cli_invocation *command);
 static struct light_cli_invocation_result do_cmd_display_info(struct light_cli_invocation *command);
 static struct light_cli_invocation_result do_cmd_display_list(struct light_cli_invocation *command);
 
 Light_Command_Define(cmd_crush_display, &cmd_crush, COMMAND_DISPLAY_NAME, COMMAND_DISPLAY_DESCRIPTION, do_cmd_display, 0, 0);
-Light_Command_Define(cmd_crush_display_import, &cmd_crush_display, COMMAND_DISPLAY_IMPORT_NAME, COMMAND_DISPLAY_IMPORT_DESCRIPTION, do_cmd_display_import, 1, 1);
+Light_Command_Define(cmd_crush_display_add, &cmd_crush_display, COMMAND_DISPLAY_ADD_NAME, COMMAND_DISPLAY_ADD_DESCRIPTION, do_cmd_display_add, 3, 3);
+Light_Command_Option_Define(opt_crush_display_add_description, &cmd_crush_display_add, "desc", 'd', "defines the description string for this display object");
+Light_Command_Option_Define(opt_crush_display_add_pixel_depth, &cmd_crush_display_add, "pixel-depth", 'p', "defines the number of bits per pixel for this display object (default: 1)");
+Light_Command_Option_Define(opt_crush_display_add_dimensions, &cmd_crush_display_add, "dimension", 'n', "defines the physical display width and height for this display object");
+
 Light_Command_Define(cmd_crush_display_info, &cmd_crush_display, COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info, 1, 1);
 Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info, 1, 1);
 
@@ -42,14 +41,6 @@ uint8_t crush_display_onload()
 {
         crush_common_register_context_object_loader(OBJECT_NAME, JSON_FILE,
                                         crush_display_create_context, crush_display_load_context);
-        /*
-        cmd_display = light_cli_register_subcommand(cmd_parent,
-                COMMAND_DISPLAY_NAME, COMMAND_DISPLAY_DESCRIPTION, do_cmd_display);
-        cmd_display_import = light_cli_register_subcommand(cmd_display,
-                COMMAND_DISPLAY_IMPORT_NAME, COMMAND_DISPLAY_IMPORT_DESCRIPTION, do_cmd_display_import);
-        cmd_display_info = light_cli_register_subcommand(cmd_display,
-                COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info);
-        */
        
         return CODE_OK;
 }
@@ -75,7 +66,7 @@ void crush_display_load_context(struct crush_context *context, const uint8_t *fi
 {
         uint8_t *type;
         struct crush_display_context *display_context = light_alloc(sizeof(struct crush_display_context));
-        light_mutex_init(&display_context->lock);
+        light_mutex_init_recursive(&display_context->lock);
         display_context->root = context;
         display_context->file_path = file_path;
         double version_f, next_id_f;
@@ -92,13 +83,16 @@ void crush_display_load_context(struct crush_context *context, const uint8_t *fi
         display_context->next_id = (uint32_t) next_id_f;
         crush_context_add_context_object(context, OBJECT_NAME, (void *)display_context);
 }
+// returns a json-backed object with a NEW json reference
 struct crush_display *crush_display_context_get(struct crush_display_context *context, uint32_t id)
 {
         ID_To_String(id_str, id);
+        light_mutex_do_lock(&context->lock);
         crush_json_t *obj_data = json_object_get(context->data, id_str);
+        light_mutex_do_unlock(&context->lock);
         struct crush_display *result = crush_display_object_deserialize(obj_data);
         result->id = id;
-        json_decref(obj_data);
+        result->json = obj_data;
         return result;
 }
 struct crush_display *crush_display_context_get_by_name(struct crush_display_context *ctx, const uint8_t *name)
@@ -109,8 +103,8 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
         // TODO place sync barriers around access to the object store
         json_object_foreach(ctx->data, _key, _val) {
                 if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
+                        light_mutex_do_unlock(&ctx->lock);
                         struct crush_display *out = crush_display_object_deserialize(_val);
-                        json_decref(_val);
                         return out;
                 }
                 json_decref(_val);
@@ -173,11 +167,11 @@ crush_json_t *crush_display_object_serialize(struct crush_display *object)
                         "s:s,"          //      "name": "gme_12864_6"
                         "s:s,"          //      "description": "PM-OLED, dimensions x*y, resolution 128*64"
                         "s:i,"          //      "res_h": 128
-                        "s:i"           //      "res_v": 64
-                        "s:i,"          //      "ppi_h": 128
-                        "s:i"           //      "ppi_v": 64
-                        "s:F,"          //      "width_mm": 25
-                        "s:F"           //      "height_mm": 11
+                        "s:i,"          //      "res_v": 64
+                        "s:f,"          //      "ppi_h": 128
+                        "s:f,"          //      "ppi_v": 64
+                        "s:f,"          //      "width_mm": 25
+                        "s:f"           //      "height_mm": 11
                 "}",
                 "name",                 object->name,
                 "description",          object->description,
@@ -190,44 +184,42 @@ crush_json_t *crush_display_object_serialize(struct crush_display *object)
                 );
         return data;
 }
-// NOTE this function decodes the processed object onto the stack and then releases the
-// json data object, before finally allocating heap memory and copying the decoded object
-// back off the stack. the rationale behind this approach is to ensure that heap memory
-// is not allocated until the data record has been successfully unpacked, using the stack
-// as a decoding cache, since on some (embedded) platforms it may be much more costly to
-// allocate heap memory than to push a fairly small object onto the stack, and on some
-// platforms the allocation of a heap object may in fact be irreversible. 
+// NOTE this function decodes the processed object onto the stack, before allocating heap
+// memory and copying the decoded object back off the stack. the rationale behind this
+// approach is to ensure that heap memory is not allocated until the data record has been
+// successfully unpacked, using the stack as a decoding cache, since on some (embedded)
+// platforms it may be much more costly to allocate heap memory than to push a fairly small
+// object onto the stack, and on some platforms the allocation of a heap object may in fact
+// be irreversible. 
 struct crush_display *crush_display_object_deserialize(crush_json_t *data)
 {
-        struct crush_display object;
+        struct crush_display *object = light_alloc(sizeof(struct crush_display));
         int failed = json_unpack(data, 
                 "{"
                         "s:s,"          //      "name"
                         "s:s,"          //      "description"
                         "s:i,"          //      "res_h"
                         "s:i"           //      "res_v"
-                        "s:i,"          //      "ppi_h"
-                        "s:i"           //      "ppi_v"
-                        "s:F,"          //      "width_mm"
-                        "s:F"           //      "height_mm"
+                        "s:f,"          //      "ppi_h"
+                        "s:f"           //      "ppi_v"
+                        "s:f,"          //      "width_mm"
+                        "s:f"           //      "height_mm"
                 "}",
-                "name",                 &object.name,
-                "description",          &object.description,
-                "res_h",                &object.resolution_h,
-                "res_v",                &object.resolution_v,
-                "ppi_h",                &object.ppi_h,
-                "ppi_v",                &object.ppi_v,
-                "width_mm",             &object.width_mm,
-                "height_mm",            &object.height_mm
+                "name",                 &object->name,
+                "description",          &object->description,
+                "res_h",                &object->resolution_h,
+                "res_v",                &object->resolution_v,
+                "ppi_h",                &object->ppi_h,
+                "ppi_v",                &object->ppi_v,
+                "width_mm",             &object->width_mm,
+                "height_mm",            &object->height_mm
         );
         if(failed) {
                 light_error("json object decode failed: json_unpack returned nonzero value");
                 return NULL;
         }
-        json_decref(data);
-        struct crush_display *out = light_alloc(sizeof(struct crush_display));
-        memcpy(out, &object, sizeof(struct crush_display));
-        return out;
+        object->json = data;
+        return object;
 }
 extern void crush_display_release(struct crush_display *display)
 {
@@ -238,7 +230,7 @@ extern void crush_display_release(struct crush_display *display)
 }
 
 void crush_display_init(struct crush_display *display, const uint8_t *name, const uint8_t *description,
-                uint16_t res_h, uint16_t res_v, uint16_t ppi_h, uint16_t ppi_v, uint8_t pixel_depth)
+                uint16_t res_h, uint16_t res_v, double ppi_h, double ppi_v, uint8_t pixel_depth)
 {
         atomic_store(&display->id, CRUSH_JSON_ID_NEW);
         display->context = NULL;
@@ -270,9 +262,60 @@ static struct light_cli_invocation_result do_cmd_display(struct light_cli_invoca
 {
         return Result_Alias(&cmd_crush_display_list);
 }
-static struct light_cli_invocation_result do_cmd_display_import(struct light_cli_invocation *command)
+#define PIXEL_DEPTH_DEFAULT     1
+static struct light_cli_invocation_result do_cmd_display_add(struct light_cli_invocation *invoke)
 {
-        // TODO write this command
+        uint16_t dimension_h;
+        uint16_t dimension_v;
+        uint8_t ov_pixel_depth;
+        const uint8_t *ov_description;
+        const uint8_t *ov_dimension;
+        const uint8_t *disp_name = light_cli_invocation_get_arg_value(invoke, 0);
+        uint16_t resolution_x = atoi(light_cli_invocation_get_arg_value(invoke, 1));
+        uint16_t resolution_y = atoi(light_cli_invocation_get_arg_value(invoke, 2));
+        if(light_cli_invocation_option_is_set(invoke, "pixel-depth")) {
+                ov_pixel_depth = atoi(light_cli_invocation_get_option_value(invoke, "pixel-depth"));
+        } else {
+                ov_pixel_depth = PIXEL_DEPTH_DEFAULT;
+        }
+        if(light_cli_invocation_option_is_set(invoke, "desc")) {
+                ov_description = light_cli_invocation_get_option_value(invoke, "desc");
+        } else {
+                ov_description = "";
+        }
+        if(light_cli_invocation_option_is_set(invoke, "dimension")) {
+                ov_dimension = light_cli_invocation_get_option_value(invoke, "dimension");
+                uint8_t div_index = strcspn(ov_dimension, "xX, *");
+                if(!(div_index > 0)) {
+                        light_error("option 'dimension' must be two whole numbers separated by an 'x' or '*' character");
+                        return Result_Error;
+                }
+                uint8_t *dimh_str = light_alloc(div_index);
+                uint8_t *dimv_str = light_alloc(strlen(dimh_str + div_index));
+                strncpy(dimh_str, ov_dimension, div_index);
+                strcpy(dimv_str, (ov_dimension + div_index));
+                dimension_h = atoi(dimh_str);
+                dimension_v = atoi(dimv_str);
+        } else {
+                dimension_h = resolution_x;
+                dimension_v = resolution_y;
+        }
+        struct crush_display *display = light_alloc(sizeof(struct crush_display));
+        display->name = disp_name;
+        display->description = ov_description;
+        display->resolution_h = resolution_x;
+        display->resolution_v = resolution_y;
+        display->width_mm = dimension_h;
+        display->height_mm = dimension_v;
+
+        // TODO properly define measurement units and conversions for this calculation
+        uint16_t ppi_h = dimension_h / resolution_x;
+        uint16_t ppi_v = dimension_v / resolution_y;
+        crush_display_init(display, disp_name, ov_description, resolution_x, resolution_y, ppi_h, ppi_v, ov_pixel_depth);
+
+        crush_display_save(display);
+        crush_display_commit();
+
         return Result_Success;
 }
 static struct light_cli_invocation_result do_cmd_display_info(struct light_cli_invocation *command)
