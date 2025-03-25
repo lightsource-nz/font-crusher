@@ -34,7 +34,7 @@
             "request": "launch",
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "render", "new"
+                "render", "new", "test-render", "14", "--font", "MapleMono-Regular.ttf", "--display", "pico-oled-1-3"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",

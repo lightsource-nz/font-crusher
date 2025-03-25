@@ -11,6 +11,8 @@
 #define CRUSH_RENDER_STATE_CANCEL               4
 #define CRUSH_RENDER_STATE_ERROR                5
 
+#define CRUSH_RENDER_CONTEXT_SUBDIR_NAME        "render"
+
 Light_Command_Declare(cmd_crush_render, cmd_crush);
 Light_Command_Declare(cmd_crush_render_new, cmd_crush_render);
 Light_Command_Declare(cmd_crush_render_info, cmd_crush_render);
@@ -21,7 +23,7 @@ Light_Command_Option_Declare(opt_crush_render_new_display, &cmd_crush_render_new
 
 struct crush_render_context {
         light_mutex_t lock;
-        const struct crush_context *root;
+        struct crush_context *root;
         const uint8_t *file_path;
         uint16_t version;
         atomic_uint_least32_t next_id;
@@ -74,7 +76,9 @@ extern struct crush_render *crush_render_object_deserialize(crush_json_t *data);
 extern void crush_render_module_load();
 extern void crush_render_module_unload();
 
-extern void crush_render_init(struct crush_render *render, struct crush_font *font, uint8_t font_size, struct crush_display *display, const uint8_t *name);
+extern uint8_t *crush_render_context_get_root_path(struct crush_render_context *context);
+extern void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display);
+extern void crush_render_init(struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display);
 extern void crush_render_release(struct crush_render *render);
 extern uint32_t crush_render_get_id(struct crush_render *render);
 extern uint8_t crush_render_get_state(struct crush_render *render);

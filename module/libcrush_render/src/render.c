@@ -35,8 +35,8 @@ Light_Command_Define(cmd_crush_render_new, &cmd_crush_render, COMMAND_RENDER_NEW
 Light_Command_Define(cmd_crush_render_info, &cmd_crush_render, COMMAND_RENDER_INFO_NAME, COMMAND_RENDER_INFO_DESC, do_cmd_render_info, 0, 1);
 Light_Command_Define(cmd_crush_render_list, &cmd_crush_render, COMMAND_RENDER_LIST_NAME, COMMAND_RENDER_LIST_DESC, do_cmd_render_list, 1, 2);
 
-Light_Command_Option_Define(opt_crush_render_new_font, &cmd_crush_render, OPTION_RENDER_NEW_FONT_NAME, OPTION_RENDER_NEW_FONT_CODE, OPTION_RENDER_NEW_FONT_DESC);
-Light_Command_Option_Define(opt_crush_render_new_display, &cmd_crush_render, OPTION_RENDER_NEW_DISPLAY_NAME, OPTION_RENDER_NEW_DISPLAY_CODE, OPTION_RENDER_NEW_DISPLAY_DESC);
+Light_Command_Option_Define(opt_crush_render_new_font, &cmd_crush_render_new, OPTION_RENDER_NEW_FONT_NAME, OPTION_RENDER_NEW_FONT_CODE, OPTION_RENDER_NEW_FONT_DESC);
+Light_Command_Option_Define(opt_crush_render_new_display, &cmd_crush_render_new, OPTION_RENDER_NEW_DISPLAY_NAME, OPTION_RENDER_NEW_DISPLAY_CODE, OPTION_RENDER_NEW_DISPLAY_DESC);
 
 static void print_usage_render();
 static void print_usage_render_new();
@@ -103,7 +103,7 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         }
         render_ctx->version = (uint16_t) version_f;
         render_ctx->next_id = (uint32_t) next_id_f;
-        crush_context_add_context_object(context, CRUSH_MODULE_CONTEXT_OBJECT_NAME, render_ctx);
+        crush_context_add_context_object(context, CRUSH_RENDER_CONTEXT_OBJECT_NAME, render_ctx);
 }
 struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint32_t id)
 {
@@ -227,12 +227,16 @@ struct crush_render *crush_render_object_deserialize(crush_json_t *data)
         object->display = crush_display_get(display_id);
         return object;
 }
-
-void crush_render_init(struct crush_render *render, struct crush_font *font, uint8_t font_size, struct crush_display *display, const uint8_t *name)
+uint8_t *crush_render_context_get_root_path(struct crush_render_context *context)
+{
+        crush_path_join(crush_context_get_context_root_path(context->root), CRUSH_RENDER_CONTEXT_SUBDIR_NAME);
+}
+void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display)
 {
         atomic_store(&render->id, CRUSH_JSON_ID_NEW);
         render->id = CRUSH_JSON_LPRIME;
         render->job_id = RENDER_JOB_NEW;
+        render->state = CRUSH_RENDER_STATE_NEW;
         render->font = font;
         render->display = display;
         uint8_t *time_str = crush_common_datetime_string();
@@ -240,6 +244,11 @@ void crush_render_init(struct crush_render *render, struct crush_font *font, uin
         asprintf(name_char, "render:%s@%dpt-%s-%s",
                         crush_font_get_name(font), font_size, crush_display_get_name(display), time_str);
         light_free(time_str);
+        render->path = crush_path_join(crush_render_context_get_root_path(context), name);
+}
+void crush_render_init(struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display)
+{
+        crush_render_init_ctx(crush_render_context(), render, name, font, font_size, display);
 }
 void crush_render_release(struct crush_render *render)
 {
@@ -337,6 +346,8 @@ static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocat
 }
 static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_invocation *invoke)
 {
+        const uint8_t *name = light_cli_invocation_get_arg_value(invoke, 0);
+        uint8_t font_size = atoi(light_cli_invocation_get_arg_value(invoke, 1));
         const uint8_t *str_font = light_cli_invocation_get_option_value(invoke, OPTION_RENDER_NEW_FONT_NAME);
         if(!str_font) {
                 str_font = light_platform_getenv(CRUSH_EV_FONT);
@@ -364,16 +375,11 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
                 light_error("could not find display object with name '%s'", str_display);
                 return Result_Error;
         }
+        struct crush_render_context *context = crush_render_context();
         light_info("creating new render job '%s-%s", font->name, display->name);
         struct crush_render *new_render = light_alloc(sizeof(struct crush_render));
-        new_render->font = font;
-        new_render->display = display;
+        crush_render_init(new_render, name, font, font_size, display);
 
-        struct crush_render_context *context = crush_render_context();
-
-
-
-        new_render->state = CRUSH_RENDER_STATE_NEW;
         crush_render_context_save(context, new_render);
         // this command performs the actual file write which saves our new object to disk
         crush_render_context_commit(context);
