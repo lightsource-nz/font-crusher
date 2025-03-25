@@ -102,7 +102,7 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
         light_mutex_do_lock(&ctx->lock);
         // TODO place sync barriers around access to the object store
         json_object_foreach(ctx->data, _key, _val) {
-                if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
+                if(!strcmp(json_string_value(json_object_get(_val, "name")), name)) {
                         light_mutex_do_unlock(&ctx->lock);
                         struct crush_display *out = crush_display_object_deserialize(_val);
                         return out;
@@ -193,22 +193,23 @@ crush_json_t *crush_display_object_serialize(struct crush_display *object)
 // be irreversible. 
 struct crush_display *crush_display_object_deserialize(crush_json_t *data)
 {
+        double res_h_f, res_v_f;
         struct crush_display *object = light_alloc(sizeof(struct crush_display));
         int failed = json_unpack(data, 
                 "{"
                         "s:s,"          //      "name"
                         "s:s,"          //      "description"
-                        "s:i,"          //      "res_h"
-                        "s:i"           //      "res_v"
+                        "s:f,"          //      "res_h"
+                        "s:f,"           //      "res_v"
                         "s:f,"          //      "ppi_h"
-                        "s:f"           //      "ppi_v"
+                        "s:f,"           //      "ppi_v"
                         "s:f,"          //      "width_mm"
                         "s:f"           //      "height_mm"
                 "}",
                 "name",                 &object->name,
                 "description",          &object->description,
-                "res_h",                &object->resolution_h,
-                "res_v",                &object->resolution_v,
+                "res_h",                &res_h_f,
+                "res_v",                &res_v_f,
                 "ppi_h",                &object->ppi_h,
                 "ppi_v",                &object->ppi_v,
                 "width_mm",             &object->width_mm,
@@ -218,6 +219,8 @@ struct crush_display *crush_display_object_deserialize(crush_json_t *data)
                 light_error("json object decode failed: json_unpack returned nonzero value");
                 return NULL;
         }
+        object->resolution_h = res_h_f;
+        object->resolution_v = res_v_f;
         object->json = data;
         return object;
 }
