@@ -129,7 +129,7 @@ struct crush_font *crush_font_context_get_by_name(struct crush_font_context *con
         json_t *value;
         light_mutex_do_lock(&context->lock);
         json_object_foreach(context->data, key, value) {
-                if(strcmp(json_string_value(json_object_get(value, "name")), name)) {
+                if(!strcmp(json_string_value(json_object_get(value, "name")), name)) {
                         light_mutex_do_unlock(&context->lock);
                         struct crush_font *out = crush_font_object_deserialize(value);
                         return out;
@@ -238,7 +238,7 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
         uint8_t *state_str;
         struct crush_font *font = light_alloc(sizeof(struct crush_font));
         crush_json_t *files_data;
-
+        double target_file_f, face_index_f;
         int failed = json_unpack(data, 
                 "{"
                         "s:s,"          //      "name":                 "font_creator.sans_helvetica"
@@ -246,8 +246,8 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
                         "s:b,"          //      "source_is_local"       false
                         "s:s,"          //      "source":               "git:https//github.com/font_creator/sans_helvetica"
                         "s:s,"          //      "path"                  "data/font/font_creator.sans_helvetica"
-                        "s:i,"          //      "target_file"           0
-                        "s:i,"          //      "face_index"            0
+                        "s:f,"          //      "target_file"           0
+                        "s:f,"          //      "face_index"            0
                         "s:O"           //      "files":                ["font_creator.sans_helvetica.ttf"]
                 "}",
                 "name",         &font->name,
@@ -255,14 +255,16 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
                 "source_is_local",      &font->source_is_local,
                 "source",       &font->source,
                 "path",         &font->path,
-                "target_file",  &font->target_file,
-                "face_index",   &font->face_index,
+                "target_file",  &target_file_f,
+                "face_index",   &face_index_f,
                 "files",        &files_data
         );
         if(failed) {
                 light_error("json object decode failed: json_unpack returned nonzero value");
                 return NULL;
         }
+        font->target_file = target_file_f;
+        font->face_index = face_index_f;
         uint8_t i;
         json_t *file_value;
         json_array_foreach(files_data, i, file_value) {
