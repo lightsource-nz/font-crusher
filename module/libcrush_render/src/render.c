@@ -58,12 +58,10 @@ void crush_render_module_load()
 }
 extern void crush_render_module_unload()
 {
-        struct crush_render_context *default_context = crush_render_context();
-        struct render_engine *default_engine = render_engine_default();
         light_debug("saving all pending changes to the object database");
-        crush_render_context_commit(default_context);
-        light_debug("shutting down default rendering pipeline");
-        render_engine_cmd_shutdown(default_engine);
+        crush_render_commit();
+        // TODO consider some mechanism to unregister object stores from central context
+        crush_render_destroy_context(crush_render_context());
 }
 struct crush_render_context *crush_render_context()
 {
@@ -104,6 +102,13 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         render_ctx->version = (uint16_t) version_f;
         render_ctx->next_id = (uint32_t) next_id_f;
         crush_context_add_context_object(context, CRUSH_RENDER_CONTEXT_OBJECT_NAME, render_ctx);
+}
+void crush_render_destroy_context(struct crush_render_context *context)
+{
+        mtx_lock(&context->lock);
+        json_decref(context->data);
+        context->data = NULL;
+        mtx_unlock(&context->lock);
 }
 struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint32_t id)
 {
@@ -165,7 +170,7 @@ uint8_t crush_render_context_commit(struct crush_render_context *context)
         ID_To_String(id_str, context->next_id);
         json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT_WRITE,
                                         "version",              context->version,
-                                        "type",                 CRUSH_FONT_CONTEXT_OBJECT_NAME,
+                                        "type",                 OBJECT_NAME,
                                         "next_id",              context->next_id,
                                         "contextRenders",       context->data);
         int obj_file_handle = open(context->file_path, (O_WRONLY|O_CREAT|O_TRUNC), (S_IRWXU | S_IRGRP | S_IROTH));

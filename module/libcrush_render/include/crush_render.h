@@ -49,6 +49,7 @@ extern struct crush_render_context *crush_render_context();
 extern struct crush_render_context *crush_render_get_context(struct crush_context *root);
 extern crush_json_t *crush_render_create_context(uint8_t *path);
 extern void crush_render_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
+extern void crush_render_destroy_context(struct crush_render_context *context);
 extern struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint32_t id);
 extern struct crush_render *crush_render_context_get_by_name(struct crush_render_context *context, const uint8_t *name);
 static inline struct crush_render *crush_render_get(const uint32_t id)
@@ -92,9 +93,5 @@ extern void crush_render_set_display(struct crush_render *render, struct crush_d
 
 extern uint8_t crush_render_start_render_job(struct crush_render *render);
 extern uint8_t crush_render_cancel_render_job(struct crush_render *render);
-
-extern struct light_command *crush_render_get_command();
-extern struct light_command *crush_render_get_subcommand_new();
-extern struct light_command *crush_render_get_subcommand_info();
 
 #endif

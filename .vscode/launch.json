@@ -17,6 +17,11 @@
             "MIMode": "gdb",
             "setupCommands": [
                 {
+                    "description": "disable halting on thread management signals",
+                    "text": "handle SIGUSR1 SIGUSR2 noprint pass",
+                    "ignoreFailures": false
+                },
+                {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
@@ -42,6 +47,11 @@
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
+                {
+                    "description": "disable halting on thread management signals",
+                    "text": "handle SIGUSR1 SIGUSR2 noprint pass",
+                    "ignoreFailures": false
+                },
                 {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
@@ -69,6 +79,11 @@
             "MIMode": "gdb",
             "setupCommands": [
                 {
+                    "description": "disable halting on thread management signals",
+                    "text": "handle SIGUSR1 SIGUSR2 noprint pass",
+                    "ignoreFailures": false
+                },
+                {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
@@ -94,6 +109,11 @@
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
+                {
+                    "description": "disable halting on thread management signals",
+                    "text": "handle SIGUSR1 SIGUSR2 noprint pass",
+                    "ignoreFailures": false
+                },
                 {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",

@@ -7,10 +7,23 @@ void crush_queue_init(struct crush_queue *queue)
         mtx_lock(&queue->lock);
         cnd_init(&queue->read_cnd);
         cnd_init(&queue->write_cnd);
+        queue->is_open = true;
         // we start out with the write head set to zero, and the read head set to NULL
         queue->write_head = 0;
         queue->read_head = QUEUE_NULL;
         mtx_unlock(&queue->lock);
+}
+void crush_queue_close(struct crush_queue *queue)
+{
+        queue->is_open = false;
+        cnd_broadcast(&queue->read_cnd);
+        cnd_broadcast(&queue->write_cnd);
+}
+void crush_queue_deinit(struct crush_queue *queue)
+{
+        cnd_destroy(&queue->read_cnd);
+        cnd_destroy(&queue->write_cnd);
+        mtx_destroy(&queue->lock);
 }
 static uint8_t increment_index(uint8_t index)
 {
@@ -51,12 +64,22 @@ uint8_t _crush_queue_put(struct crush_queue *queue, void *item)
 }
 uint8_t _crush_queue_get(struct crush_queue *queue, void **out)
 {
+        if(!queue->is_open) return QUEUE_FAIL;
         mtx_lock(&queue->lock);
-        while (queue->read_head == QUEUE_NULL)
+        if(queue->read_head == QUEUE_NULL)
         {
                 cnd_wait(&queue->read_cnd, &queue->lock);
+                if(!queue->is_open) {
+                        mtx_unlock(&queue->lock);
+                        return QUEUE_FAIL;
+                }
         }
-        uint8_t index = atomic_fetch_add(&queue->read_head, 1);
+        uint8_t index;
+        do {
+                index = queue->read_head;
+        }
+        while(!atomic_compare_exchange_weak(&queue->read_head, &index, (index + 1) % QUEUE_MAX));
+        
         *out = queue->cell[index];
         mtx_unlock(&queue->lock);
         return QUEUE_OK;

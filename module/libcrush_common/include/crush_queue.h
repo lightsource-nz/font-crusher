@@ -14,6 +14,7 @@ struct crush_queue {
         mtx_t lock;
         cnd_t read_cnd;
         cnd_t write_cnd;
+        atomic_uchar is_open;
         atomic_uchar write_head;
         atomic_uchar read_head;
         void *cell[QUEUE_MAX];
@@ -24,6 +25,8 @@ struct crush_queue {
 #define crush_queue_get_nonblock(queue, out) _crush_queue_get_nonblock(queue, (void **) out)
 #define crush_queue_put_nonblock(queue, item) _crush_queue_put_nonblock(queue, (void *) item)
 extern void crush_queue_init(struct crush_queue *queue);
+extern void crush_queue_close(struct crush_queue *queue);
+extern void crush_queue_deinit(struct crush_queue *queue);
 extern uint8_t crush_queue_count(struct crush_queue *queue);
 extern void *crush_queue_peek_idx(struct crush_queue *queue, uint8_t index);
 static inline void *crush_queue_peek(struct crush_queue *queue)

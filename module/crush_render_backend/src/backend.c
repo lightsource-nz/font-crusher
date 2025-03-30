@@ -2,6 +2,7 @@
 #include <crush.h>
 #include <crush_render_backend.h>
 #include <freetype/ftoutln.h>
+#include <pthread.h>
 
 #ifdef _STDC_NO_THREADS_
 #error "crush rendering engine requires C11 thread support"
@@ -11,6 +12,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <errno.h>
 
 #define SIGNAL_SUSPEND          SIGUSR1
@@ -55,7 +57,11 @@ uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bo
 
         if(launch) {
                 atomic_store(&engine->engine_state, ENGINE_ONLINE);
-                thrd_create(&engine->work_thread, worker__render_work_thread_main, (void *)engine);
+                int res = thrd_create(&engine->work_thread, worker__render_work_thread_main, (void *)engine);
+                if(res != thrd_success) {
+                        light_error("failed to create render engine worker thread: thrd_create returned value 0x%x", res);
+                        return LIGHT_EXTERNAL;
+                }
         }
         return LIGHT_OK;
 }
@@ -113,6 +119,15 @@ uint8_t render_engine_create_render_job(struct render_engine *engine, const uint
         job->font_size = font_size;
         job->display = target_display;
         job->output_path = output_path;
+
+        DIR *outdir = opendir(job->output_path);
+        if(!outdir) {
+                if(errno == ENOENT) {
+                        mkdir(output_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+                }
+        } else {
+                closedir(outdir);
+        }
         uint8_t err = crush_queue_put(&engine->work_queue, job);
         if(err) {
                 light_debug("failed to queue render job '%s'", job->name);
@@ -153,6 +168,9 @@ void render_engine_cmd_launch(struct render_engine *engine)
         if(atomic_compare_exchange_strong(&engine->engine_state, &engine_state, ENGINE_ONLINE)) {
                 light_debug("launching worker thread for render engine '%s'", render_engine_get_name(engine));
                 thrd_create(&engine->work_thread, worker__render_work_thread_main, engine);
+                char *thread_name;
+                asprintf(&thread_name, "render_engine_worker__%s", render_engine_get_name(engine));
+                pthread_setname_np(engine->work_thread, thread_name);
         } else {
                 light_warn("launch failed: engine state changed unexpectedly");
         }
@@ -253,8 +271,11 @@ static int worker__render_work_thread_main(void *arg)
                 // check in case the queue was closed while the worker was sleeping
                 if(this_engine->flag_closed && crush_queue_empty(&this_engine->work_queue))
                         break;
-                // this operation will block the worker thread when the queue is empty
-                crush_queue_get(&this_engine->work_queue, &this_engine->active_job);
+                // this operation will block the worker thread when the queue is empty,
+                // but will immediately return QUEUE_FAIL if the queue is closed
+                if(QUEUE_OK != crush_queue_get(&this_engine->work_queue, &this_engine->active_job)) {
+                        break;
+                }
                 atomic_store(&this_engine->engine_state_private, STATE_PROCESS);
                 atomic_signal_fence(memory_order_release);
                 worker__render_job_process(this_engine, this_engine->active_job);
@@ -378,8 +399,7 @@ static void signal__worker__render_engine_signal_handler(int signo)
         case SIGNAL_SHUTDOWN:
                 flag_val = false;
                 if(atomic_compare_exchange_strong(&this_engine->flag_closed, &flag_val, true)) {
-                        // code in this section will run exactly once when the engine shutdown state becomes true
-
+                        crush_queue_close(&this_engine->work_queue);
                 }
                 break;
         }
