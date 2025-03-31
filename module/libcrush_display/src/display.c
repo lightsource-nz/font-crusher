@@ -95,12 +95,15 @@ struct crush_display *crush_display_context_get(struct crush_display_context *co
         result->json = obj_data;
         return result;
 }
+struct crush_display *crush_display_context_get_by_id_string(struct crush_display_context *ctx, const uint8_t *id_string)
+{
+        return crush_display_context_get(ctx, String_To_ID(id_string));
+}
 struct crush_display *crush_display_context_get_by_name(struct crush_display_context *ctx, const uint8_t *name)
 {
         const uint8_t *_key;
         json_t *_val;
         light_mutex_do_lock(&ctx->lock);
-        // TODO place sync barriers around access to the object store
         json_object_foreach(ctx->data, _key, _val) {
                 if(!strcmp(json_string_value(json_object_get(_val, "name")), name)) {
                         light_mutex_do_unlock(&ctx->lock);

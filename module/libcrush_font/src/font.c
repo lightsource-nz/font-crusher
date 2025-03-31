@@ -123,6 +123,10 @@ struct crush_font *crush_font_context_get(struct crush_font_context *context, co
         json_decref(obj_data);
         return result;
 }
+struct crush_font *crush_font_context_get_by_id_string(struct crush_font_context *context, uint8_t *id_string)
+{
+        return crush_font_context_get(context, String_To_ID(id_string));
+}
 struct crush_font *crush_font_context_get_by_name(struct crush_font_context *context, uint8_t *name)
 {
         const char *key;

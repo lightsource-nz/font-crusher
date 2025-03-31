@@ -40,11 +40,16 @@ extern struct crush_display_context *crush_display_get_context(struct crush_cont
 extern crush_json_t *crush_display_create_context();
 extern void crush_display_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *json);
 extern struct crush_display *crush_display_context_get(struct crush_display_context *context, uint32_t id);
+extern struct crush_display *crush_display_context_get_by_id_string(struct crush_display_context *ctx, const uint8_t *id_string);
+extern struct crush_display *crush_display_context_get_by_name(struct crush_display_context *ctx, const uint8_t *name);
 static inline struct crush_display *crush_display_get(uint32_t id)
 {
         return crush_display_context_get(crush_display_context(), id);
 }
-extern struct crush_display *crush_display_context_get_by_name(struct crush_display_context *ctx, const uint8_t *name);
+static inline struct crush_display *crush_display_get_by_id_string(const uint8_t *id_string)
+{
+        return crush_display_context_get_by_id_string(crush_display_context(), id_string);
+}
 static inline struct crush_display *crush_display_get_by_name(const uint8_t *name)
 {
         return crush_display_context_get_by_name(crush_display_context(), name);

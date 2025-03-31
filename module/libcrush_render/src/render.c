@@ -135,6 +135,11 @@ struct crush_render *crush_render_context_get_by_name(struct crush_render_contex
 }
 uint8_t crush_render_context_save(struct crush_render_context *context, struct crush_render *object)
 {
+        // it is an error to save an object to a context if it is already bound to another
+        if(context && object->context && (context != object->context)) {
+                light_error("tried to save object '%s' to context '%x' when it is already bound to context '%x'", object->name, context, object->context);
+                return LIGHT_INVALID;
+        }
         // if crush_display_save() is called on an object with no context attached, attach
         // object to the current context
         if(!context && !object->context)
@@ -184,52 +189,54 @@ uint8_t crush_render_context_commit(struct crush_render_context *context)
 
 crush_json_t *crush_render_object_serialize(struct crush_render *object)
 {
+        ID_To_String(font_str, crush_font_get_id(object->font));
+        ID_To_String(display_str, crush_display_get_id(object->display));
         json_t *data = json_pack(
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
                         "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
                         "s:i,"          //      "job_id"                "2843"
-                        "s:i,"          //      "font":                 "sans_helvetica"
+                        "s:s,"          //      "font":                 "sans_helvetica"
                         "s:i,"          //      "font_size"             "14"
-                        "s:i,"          //      "display":              "$disp"
+                        "s:s,"          //      "display":              "$disp"
                         "s:s,"          //      "path":                 "$context/data/render/$id"
                 "}",
                 "name",         object->name,
                 "state",        object->state,
                 "job_id",       object->job_id,
-                "font",         crush_font_get_id(object->font),
+                "font",         font_str,
                 "font_size",    object->font_size,
-                "display",      crush_display_get_id(object->display),
+                "display",      display_str,
                 "path",         object->path
                 );
         return data;
 }
 struct crush_render *crush_render_object_deserialize(crush_json_t *data)
 {
-        uint32_t font_id, display_id;
+        uint8_t *font_str, *display_str;
         struct crush_render *object = light_alloc(sizeof(struct crush_render));
         json_unpack(data, 
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
                         "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
                         "s:i,"          //      "job_id"                "2843"
-                        "s:i,"          //      "font":                 "sans_helvetica"
+                        "s:s,"          //      "font":                 "sans_helvetica"
                         "s:i,"          //      "font_size"             "14"
-                        "s:i,"          //      "display":              "$disp"
+                        "s:s,"          //      "display":              "$disp"
                         "s:s,"          //      "path":                 "$context/data/render/$id"
                 "}",
                 "name",         &object->name,
                 "state",        &object->state,
                 "job_id",       &object->job_id,
-                "font",         &font_id,
+                "font",         &font_str,
                 "font_size",    &object->font_size,
-                "display",      &display_id,
+                "display",      &display_str,
                 "path",         &object->path
         );
         object->data = data;
 
-        object->font = crush_font_get(font_id);
-        object->display = crush_display_get(display_id);
+        object->font = crush_font_get_by_id_string(font_str);
+        object->display = crush_display_get_by_id_string(display_str);
         return object;
 }
 uint8_t *crush_render_context_get_root_path(struct crush_render_context *context)
@@ -239,14 +246,14 @@ uint8_t *crush_render_context_get_root_path(struct crush_render_context *context
 void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display)
 {
         atomic_store(&render->id, CRUSH_JSON_ID_NEW);
-        render->id = CRUSH_JSON_LPRIME;
         render->job_id = RENDER_JOB_NEW;
         render->state = CRUSH_RENDER_STATE_NEW;
         render->font = font;
+        render->font_size = font_size;
         render->display = display;
         uint8_t *time_str = crush_common_datetime_string();
         char **name_char = (char **) &render->name;
-        asprintf(name_char, "render:%s@%dpt-%s-%s",
+        asprintf(name_char, "render:%s@%dpt_%s_%s",
                         crush_font_get_name(font), font_size, crush_display_get_name(display), time_str);
         light_free(time_str);
         render->path = crush_path_join(crush_render_context_get_root_path(context), name);
@@ -342,6 +349,16 @@ uint8_t crush_render_cancel_render_job(struct crush_render *render)
         case CRUSH_RENDER_STATE_PAUSE:
                 
         }
+        render->state = CRUSH_RENDER_STATE_CANCEL;
+
+        return LIGHT_OK;
+}
+uint8_t crush_render_complete_render_job(struct crush_render *render)
+{
+        struct render_job *job = render_engine_collect_render_job(render_engine_default());
+        if(!strcmp(job->name, render->name)) {
+
+        }
 }
 
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)
@@ -391,6 +408,8 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
 
         // this command queues a new render job for processing
         crush_render_add_render_job(new_render);
+
+        
         
         return Result_Success;
 }

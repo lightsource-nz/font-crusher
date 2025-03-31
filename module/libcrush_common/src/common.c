@@ -109,7 +109,7 @@ uint8_t *crush_common_datetime_string()
 {
         uint8_t *out = light_alloc(DATE_STR_SIZE);
         time_t time_now = time(NULL);
-        strftime(out, DATE_STR_SIZE, "%d/%m/%y-%X", localtime(&time_now));
+        strftime(out, DATE_STR_SIZE, "%d-%m-%y", localtime(&time_now));
         return out;
 }
 struct crush_context *crush_context()

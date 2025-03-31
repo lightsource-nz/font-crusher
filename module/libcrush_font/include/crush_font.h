@@ -57,10 +57,15 @@ extern crush_json_t *crush_font_create_context();
 extern void crush_font_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
 extern void crush_font_release_context(struct crush_font_context *context);
 extern struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint32_t id);
+extern struct crush_font *crush_font_context_get_by_id_string(struct crush_font_context *context, uint8_t *id_string);
 extern struct crush_font *crush_font_context_get_by_name(struct crush_font_context *context, uint8_t *name);
 static inline struct crush_font *crush_font_get(const uint32_t id)
 {
         return crush_font_context_get(crush_font_context(), id);
+}
+static inline struct crush_font *crush_font_get_by_id_string(uint8_t *id_string)
+{
+        return crush_font_context_get_by_id_string(crush_font_context(), id_string);
 }
 static inline struct crush_font *crush_font_get_by_name(uint8_t *name)
 {

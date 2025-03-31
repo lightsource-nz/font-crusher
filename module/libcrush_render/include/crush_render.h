@@ -93,5 +93,6 @@ extern void crush_render_set_display(struct crush_render *render, struct crush_d
 
 extern uint8_t crush_render_start_render_job(struct crush_render *render);
 extern uint8_t crush_render_cancel_render_job(struct crush_render *render);
+extern uint8_t crush_render_complete_render_job(struct crush_render *render);
 
 #endif
