@@ -2,12 +2,12 @@
 #include <crush.h>
 #include <crush_render_backend.h>
 #include <freetype/ftoutln.h>
-#include <pthread.h>
 
 #ifdef _STDC_NO_THREADS_
 #error "crush rendering engine requires C11 thread support"
 #endif
 
+#include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>

@@ -41,6 +41,7 @@
 struct render_job {
         uint8_t state;
         thrd_t caller;
+        int cb_signal;
         const uint8_t *name;
         struct crush_font *font;
         uint8_t font_size;

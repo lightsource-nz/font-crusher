@@ -13,6 +13,8 @@
 
 #define CRUSH_RENDER_CONTEXT_SUBDIR_NAME        "render"
 
+#define CRUSH_RENDER_CALLBACK_SIGNAL            SIGUSR1
+
 Light_Command_Declare(cmd_crush_render, cmd_crush);
 Light_Command_Declare(cmd_crush_render_new, cmd_crush_render);
 Light_Command_Declare(cmd_crush_render_info, cmd_crush_render);

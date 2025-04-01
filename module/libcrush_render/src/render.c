@@ -1,6 +1,8 @@
 #include <crush.h>
 #include <crush_render_backend.h>
 
+#include <pthread.h>
+#include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -413,6 +415,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         
         return Result_Success;
 }
+#define ROW_LENGTH_MAX
 // NOTE that this callback is executed on the background worker stack
 static void callback__render_job_done(struct render_job *job, void *arg)
 {
@@ -424,16 +427,17 @@ static void callback__render_job_done(struct render_job *job, void *arg)
         crush_render_context_commit(render->context);
 
         if(job->res_pitch >= 0) {
-                printf("echo render job '%s':\n");
+                light_info("echo render job '%s':\n", job->name);
                 for(uint8_t i = 0; i < strlen(RENDER_CHAR_SET); i++) {
-                        printf("\n");
-                        printf(job->result[i]);
+                        light_info("");
+                        light_info(job->result[i]);
                         light_free(job->result[i]);
-                        printf("\n");
+                        light_info("");
                 }
                 light_free(job->result);
                 light_free(job);
         }
+        pthread_kill(job->caller, CRUSH_RENDER_CALLBACK_SIGNAL);
 }
 static struct light_cli_invocation_result do_cmd_render_info(struct light_cli_invocation *invoke)
 {
