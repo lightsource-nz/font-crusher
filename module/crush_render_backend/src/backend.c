@@ -243,6 +243,7 @@ static void worker__render_engine_event_handle(struct render_engine *engine);
 static int worker__render_work_thread_main(void *arg)
 {
         this_engine = (struct render_engine *)arg;
+        light_debug("loading worker thread for render engine '%s'", this_engine->name);
         atomic_store(&this_engine->engine_state, ENGINE_INIT);
         int err;
         if(err = FT_Init_FreeType(&this_engine->freetype)) {
@@ -288,6 +289,7 @@ static int worker__render_work_thread_main(void *arg)
         }
         // at this point, the queue is closed and empty (i.e. all pending events have been processed)
         // the worker thread just needs to release all resources it is holding and then terminate
+        light_debug("worker thread for render engine '%s' terminating...", this_engine->name);
         FT_Done_FreeType(this_engine->freetype);
         return LIGHT_OK;
 }
@@ -304,10 +306,11 @@ static void worker__render_engine_event_handle(struct render_engine *engine)
 }
 static void worker__render_job_process(struct render_engine *engine, struct render_job *job)
 {
+        light_debug("running render job '%s'", job->name);
         FT_Face face = NULL;
         // assert (job->state == JOB_READY)
         if(job->state != JOB_READY) {
-                light_error("render job not ready: %s", job->output_path);
+                light_error("render job not ready: %s", job->name);
         }
         job->progress = UINT16_MAX;
         job->state = JOB_ACTIVE;
@@ -321,21 +324,25 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 load_flags |= FT_LOAD_MONOCHROME;
         }
         for(uint8_t i = 0; i < num_glyphs; i++) {
-                job->progress = i;
                 atomic_signal_fence(memory_order_release);
+                atomic_store(&job->progress, i);
                 // this may block the worker thread according to external events
                 worker__render_engine_event_handle(engine);
                 // err = FT_Load_Glyph(face, char_list[i], load_flags);
                 // FT_Outline_Translate(face->glyph->outline, face->glyph->metrics.)
                 err = FT_Load_Char(face, char_list[i], load_flags);
+                // TODO handle error condition here
+                // if(err != 0) { ...
+
                 // -> this will be set again by each successive glyph dumped by this render job,
                 //    but the value will be correct
                 job->res_pitch = face->glyph->bitmap.pitch;
                 job->result[i] = worker__render_job_copy_bitmap(face->glyph->bitmap);
                 FT_Done_Face(face);
         }
+        light_debug("rendering complete for job '%s'", job->name);
+        atomic_store(&job->state, JOB_DONE);
         job->callback(job, job->cb_arg);
-        job->state = JOB_DONE;
 }
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job)
 {

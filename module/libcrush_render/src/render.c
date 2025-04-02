@@ -162,14 +162,44 @@ uint8_t crush_render_context_save(struct crush_render_context *context, struct c
         
         ID_To_String(id_str, object->id);
         light_debug("saving object ID %s (raw: 0x%X), name: '%s'", id_str, object->id, object->name);
+        object->data = crush_render_object_serialize(object);
 
-        if(0 != json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, crush_render_object_serialize(object))) {
+        if(0 != json_object_setn_new(context->data, id_str, CRUSH_JSON_KEY_LENGTH, object->data)) {
                 light_error("failed to save object ID 0x%8X, name: '%s'", object->id, object->name);
                 light_mutex_do_unlock(&context->lock);
                 return LIGHT_STORAGE;
         }
         light_mutex_do_unlock(&context->lock);
         return LIGHT_OK;
+}
+uint8_t crush_render_context_refresh(struct crush_render_context *context, struct crush_render *object)
+{
+        // it is an error to refresh an object from a context if it is already bound to another
+        if(context && object->context && (context != object->context)) {
+                light_error("tried to refresh object '%s' from context '%x' when it is already bound to context '%x'", object->name, context, object->context);
+                return LIGHT_INVALID;
+        }
+        // if crush_render_refresh() is called on an object with no context attached, attach
+        // object to the current context
+        if(!context && !object->context)
+                context = object->context = crush_render_context();
+        if(!context)
+                context = object->context;
+        if(!object->context)
+                object->context = context;
+        /*
+        ID_To_String(id_str, object->id);
+        json_t *new_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
+        if(!new_data) {
+                light_warn("failed to refresh render object '%s': object id 0x%X not found in database");
+                return LIGHT_INVALID;
+        }
+        json_decref(object->data);
+        crush_render_object_extract(new_data, object);
+        return LIGHT_OK;
+        */
+       crush_render_object_extract(object->data, object);
+       return LIGHT_OK;
 }
 uint8_t crush_render_context_commit(struct crush_render_context *context)
 {
@@ -213,10 +243,9 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
                 );
         return data;
 }
-struct crush_render *crush_render_object_deserialize(crush_json_t *data)
+void crush_render_object_extract(crush_json_t *data, struct crush_render *object)
 {
         uint8_t *font_str, *display_str;
-        struct crush_render *object = light_alloc(sizeof(struct crush_render));
         json_unpack(data, 
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
@@ -239,6 +268,12 @@ struct crush_render *crush_render_object_deserialize(crush_json_t *data)
 
         object->font = crush_font_get_by_id_string(font_str);
         object->display = crush_display_get_by_id_string(display_str);
+}
+struct crush_render *crush_render_object_deserialize(crush_json_t *data)
+{
+        uint8_t *font_str, *display_str;
+        struct crush_render *object = light_alloc(sizeof(struct crush_render));
+        crush_render_object_extract(data, object);
         return object;
 }
 uint8_t *crush_render_context_get_root_path(struct crush_render_context *context)
@@ -247,6 +282,8 @@ uint8_t *crush_render_context_get_root_path(struct crush_render_context *context
 }
 void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display)
 {
+        render->context = context;
+
         atomic_store(&render->id, CRUSH_JSON_ID_NEW);
         render->job_id = RENDER_JOB_NEW;
         render->state = CRUSH_RENDER_STATE_NEW;
@@ -368,6 +405,7 @@ static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocat
         print_usage_render();
         return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
+#define POLLING_INTERVAL_MS     200
 static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_invocation *invoke)
 {
         const uint8_t *name = light_cli_invocation_get_arg_value(invoke, 0);
@@ -395,6 +433,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
                 return Result_Error;
         }
         struct crush_display *display = crush_display_get_by_name(str_display);
+
         if(!display) {
                 light_error("could not find display object with name '%s'", str_display);
                 return Result_Error;
@@ -411,20 +450,24 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         // this command queues a new render job for processing
         crush_render_add_render_job(new_render);
 
-        
+        // TODO develop terminal-aware output streams, and use them to display a
+        // progress bar reflecting the status of the render job. set the sleep duration
+        // in the loop to tune the update frequency of the status bar
+        do {
+                light_debug("polling render job '%s', progress: '%d%%'...");
+                light_platform_sleep_ms(POLLING_INTERVAL_MS);
+                crush_render_refresh(new_render);
+        } while(crush_render_get_state(new_render) == CRUSH_RENDER_STATE_RUNNING);
         
         return Result_Success;
 }
-#define ROW_LENGTH_MAX
 // NOTE that this callback is executed on the background worker stack
 static void callback__render_job_done(struct render_job *job, void *arg)
 {
         struct crush_render *render = (struct crush_render *)arg;
-        atomic_store(&render->output, job->result);
-        atomic_store(&render->state, CRUSH_RENDER_STATE_DONE);
+        light_debug("processing completed render job '%s'", crush_render_get_name(render));
 
-        crush_render_context_save(render->context, render);
-        crush_render_context_commit(render->context);
+        atomic_store(&render->output, job->result);
 
         if(job->res_pitch >= 0) {
                 light_info("echo render job '%s':\n", job->name);
@@ -437,7 +480,14 @@ static void callback__render_job_done(struct render_job *job, void *arg)
                 light_free(job->result);
                 light_free(job);
         }
-        pthread_kill(job->caller, CRUSH_RENDER_CALLBACK_SIGNAL);
+        // TODO either make an option to enable notify signals, or just remove this entirely.
+        // the primary crush application use case does not require notification, as the foreground
+        // thread simply polls the render job until its state changes
+        //
+        // pthread_kill(job->caller, CRUSH_RENDER_CALLBACK_SIGNAL);
+        atomic_store(&render->state, CRUSH_RENDER_STATE_DONE);
+        crush_render_context_save(render->context, render);
+        crush_render_context_commit(render->context);
 }
 static struct light_cli_invocation_result do_cmd_render_info(struct light_cli_invocation *invoke)
 {

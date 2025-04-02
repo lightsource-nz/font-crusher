@@ -92,7 +92,6 @@ struct crush_display *crush_display_context_get(struct crush_display_context *co
         light_mutex_do_unlock(&context->lock);
         struct crush_display *result = crush_display_object_deserialize(obj_data);
         result->id = id;
-        result->json = obj_data;
         return result;
 }
 struct crush_display *crush_display_context_get_by_id_string(struct crush_display_context *ctx, const uint8_t *id_string)
@@ -108,6 +107,7 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
                 if(!strcmp(json_string_value(json_object_get(_val, "name")), name)) {
                         light_mutex_do_unlock(&ctx->lock);
                         struct crush_display *out = crush_display_object_deserialize(_val);
+                        out->id = String_To_ID(_key);
                         return out;
                 }
                 json_decref(_val);

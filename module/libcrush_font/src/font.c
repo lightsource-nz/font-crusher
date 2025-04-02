@@ -136,6 +136,7 @@ struct crush_font *crush_font_context_get_by_name(struct crush_font_context *con
                 if(!strcmp(json_string_value(json_object_get(value, "name")), name)) {
                         light_mutex_do_unlock(&context->lock);
                         struct crush_font *out = crush_font_object_deserialize(value);
+                        out->id = String_To_ID(key);
                         return out;
                 }
                 json_decref(value);
