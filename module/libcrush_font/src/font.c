@@ -181,6 +181,25 @@ uint8_t crush_font_context_save(struct crush_font_context *context, struct crush
         light_mutex_do_unlock(&context->lock);
         return LIGHT_OK;
 }
+uint8_t crush_font_context_refresh(struct crush_font_context *context, struct crush_font *object)
+{
+        // it is an error to refresh an object from a context if it is already bound to another
+        if(context && object->context && (context != object->context)) {
+                light_error("tried to refresh object '%s' from context '%x' when it is already bound to context '%x'", object->name, context, object->context);
+                return LIGHT_INVALID;
+        }
+        // if crush_font_refresh() is called on an object with no context attached, attach
+        // object to the current context
+        if(!context && !object->context)
+                context = object->context = crush_font_context();
+        if(!context)
+                context = object->context;
+        if(!object->context)
+                object->context = context;
+        
+       crush_font_object_extract(object->data, object);
+       return LIGHT_OK;
+}
 uint8_t crush_font_context_commit(struct crush_font_context *context)
 {
         light_debug("saving font context to file '%s'...", context->file_path);
@@ -234,14 +253,9 @@ crush_json_t *crush_font_object_serialize(struct crush_font *font)
         }
         return obj;
 }
-// ==> struct crush_font *crush_font_object_deserialize(crush_json_t data)
-//   this function consumes the object reference passed to it
-//   we may come back and implement full custom field extraction for objects of differing
-// font_type values, but for now all font objects are expected to have the same fields
-struct crush_font *crush_font_object_deserialize(crush_json_t *data)
+void crush_font_object_extract(crush_json_t *data, struct crush_font *object)
 {
         uint8_t *state_str;
-        struct crush_font *font = light_alloc(sizeof(struct crush_font));
         crush_json_t *files_data;
         double target_file_f, face_index_f;
         int failed = json_unpack(data, 
@@ -255,28 +269,36 @@ struct crush_font *crush_font_object_deserialize(crush_json_t *data)
                         "s:f,"          //      "face_index"            0
                         "s:O"           //      "files":                ["font_creator.sans_helvetica.ttf"]
                 "}",
-                "name",         &font->name,
+                "name",         &object->name,
                 "state",        &state_str,
-                "source_is_local",      &font->source_is_local,
-                "source",       &font->source,
-                "path",         &font->path,
+                "source_is_local",      &object->source_is_local,
+                "source",       &object->source,
+                "path",         &object->path,
                 "target_file",  &target_file_f,
                 "face_index",   &face_index_f,
                 "files",        &files_data
         );
         if(failed) {
                 light_error("json object decode failed: json_unpack returned nonzero value");
-                return NULL;
+                return;
         }
-        font->target_file = target_file_f;
-        font->face_index = face_index_f;
+        object->target_file = target_file_f;
+        object->face_index = face_index_f;
         uint8_t i;
         json_t *file_value;
         json_array_foreach(files_data, i, file_value) {
-                json_unpack(file_value, "s", &font->file[i]);
+                json_unpack(file_value, "s", &object->file[i]);
         }
-        font->data = data;
-
+        object->data = data;
+}
+// ==> struct crush_font *crush_font_object_deserialize(crush_json_t data)
+//   this function consumes the object reference passed to it
+//   we may come back and implement full custom field extraction for objects of differing
+// font_type values, but for now all font objects are expected to have the same fields
+struct crush_font *crush_font_object_deserialize(crush_json_t *data)
+{
+        struct crush_font *font = light_alloc(sizeof(struct crush_font));
+        crush_font_object_extract(data, font);
         return font;
 }
 

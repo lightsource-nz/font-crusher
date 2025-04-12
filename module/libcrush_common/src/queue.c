@@ -52,18 +52,31 @@ bool crush_queue_empty(struct crush_queue *queue)
 {
         return queue->read_head == QUEUE_NULL;
 }
+//   TODO I'm pretty sure this routine has sufficient atomic protection that it should be
+// safe to remove the locks, once the other routines accessing the read and write heads are
+// also determined to be safe
 uint8_t _crush_queue_put(struct crush_queue *queue, void *item)
 {
         mtx_lock(&queue->lock);
+        uint8_t was_empty = crush_queue_empty(queue);
         while(queue->write_head == QUEUE_NULL) {
                 cnd_wait(&queue->write_cnd, &queue->lock);
         }
-        uint8_t index = atomic_fetch_add(&queue->write_head, 1);
+        uint8_t index;
+        do {
+                index = queue->write_head;
+        }
+        while(!atomic_compare_exchange_weak(&queue->write_head, &index, (index + 1) % QUEUE_MAX));
         queue->cell[index] = item;
         mtx_unlock(&queue->lock);
+        if(was_empty) {
+                queue->read_head = index;
+                cnd_signal(&queue->read_cnd);
+        }
 }
 uint8_t _crush_queue_get(struct crush_queue *queue, void **out)
 {
+        light_trace("[enter] queue: 0x%x", queue);
         if(!queue->is_open) return QUEUE_FAIL;
         mtx_lock(&queue->lock);
         if(queue->read_head == QUEUE_NULL)
@@ -71,29 +84,51 @@ uint8_t _crush_queue_get(struct crush_queue *queue, void **out)
                 cnd_wait(&queue->read_cnd, &queue->lock);
                 if(!queue->is_open) {
                         mtx_unlock(&queue->lock);
+                        light_trace("[fail: closed] queue: 0x%x", queue);
                         return QUEUE_FAIL;
                 }
         }
+
+        uint8_t was_full = crush_queue_full(queue);
+        uint8_t last_element = (crush_queue_count(queue) == 1);
         uint8_t index;
+        uint8_t head_value = last_element? QUEUE_NULL : ((queue->read_head + 1) % QUEUE_MAX);
         do {
                 index = queue->read_head;
         }
-        while(!atomic_compare_exchange_weak(&queue->read_head, &index, (index + 1) % QUEUE_MAX));
-        
+        while(!atomic_compare_exchange_weak(&queue->read_head, &index, head_value));
         *out = queue->cell[index];
+        if(last_element) {
+                queue->read_head = QUEUE_NULL;
+        }
         mtx_unlock(&queue->lock);
+        if(was_full) {
+                queue->write_head = index;
+                cnd_signal(&queue->write_cnd);
+        }
+        light_trace("[exit] queue: 0x%x", queue);
         return QUEUE_OK;
 }
 uint8_t _crush_queue_put_nonblock(struct crush_queue *queue, void *item)
 {
         mtx_lock(&queue->lock);
+        uint8_t was_empty = crush_queue_empty(queue);
         if(queue->write_head == QUEUE_NULL) {
                 mtx_unlock(&queue->lock);
                 return QUEUE_FAIL;
         }
-        uint8_t index = atomic_fetch_add(&queue->write_head, 1);
+        uint8_t index;
+        do {
+                index = queue->write_head;
+        }
+        while(!atomic_compare_exchange_weak(&queue->write_head, &index, (index + 1) % QUEUE_MAX));
+
         queue->cell[index] = item;
-        mtx_unlock(&queue->lock); 
+        mtx_unlock(&queue->lock);
+        if(was_empty) {
+                queue->read_head = index;
+                cnd_signal(&queue->read_cnd);
+        }
         return QUEUE_OK;
 }
 uint8_t _crush_queue_get_nonblock(struct crush_queue *queue, void **out)
@@ -103,8 +138,20 @@ uint8_t _crush_queue_get_nonblock(struct crush_queue *queue, void **out)
                 mtx_unlock(&queue->lock);
                 return QUEUE_FAIL;
         }
-        uint8_t index = atomic_fetch_add(&queue->read_head, 1);
+        uint8_t was_full = crush_queue_full(queue);
+        uint8_t last_element = (crush_queue_count(queue) == 1);
+        uint8_t index;
+        uint8_t head_value = last_element? QUEUE_NULL : ((queue->read_head + 1) % QUEUE_MAX);
+        do {
+                index = queue->read_head;
+        }
+        while(!atomic_compare_exchange_weak(&queue->read_head, &index, head_value));
+
         *out = queue->cell[index];
         mtx_unlock(&queue->lock);
+        if(was_full) {
+                queue->write_head = index;
+                cnd_signal(&queue->write_cnd);
+        }
         return QUEUE_OK;
 }

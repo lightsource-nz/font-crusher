@@ -72,10 +72,15 @@ static inline struct crush_font *crush_font_get_by_name(uint8_t *name)
         return crush_font_context_get_by_name(crush_font_context(), name);
 }
 extern uint8_t crush_font_context_save(struct crush_font_context *context, struct crush_font *font);
+extern uint8_t crush_font_context_refresh(struct crush_font_context *context, struct crush_font *object);
 extern uint8_t crush_font_context_commit(struct crush_font_context *context);
 static inline uint8_t crush_font_save(struct crush_font *object)
 {
         return crush_font_context_save(object->context, object);
+}
+static inline uint8_t crush_font_refresh(struct crush_font *object)
+{
+        return crush_font_context_refresh(object->context, object);
 }
 static inline uint8_t crush_font_commit()
 {
@@ -83,6 +88,7 @@ static inline uint8_t crush_font_commit()
 }
 
 extern crush_json_t *crush_font_object_serialize(struct crush_font *font);
+extern void crush_font_object_extract(crush_json_t *data, struct crush_font *object);
 extern struct crush_font *crush_font_object_deserialize(crush_json_t *data);
 
 extern uint32_t crush_font_get_id(struct crush_font *font);

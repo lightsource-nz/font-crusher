@@ -36,7 +36,7 @@ struct crush_render {
         struct crush_render_context *context;
         crush_json_t *data;
         uint32_t id;
-        uint8_t job_id;
+        struct render_job *render_job;
         uint8_t *name;
         uint8_t state;
         struct crush_font *font;
@@ -102,5 +102,6 @@ extern void crush_render_set_display(struct crush_render *render, struct crush_d
 extern uint8_t crush_render_start_render_job(struct crush_render *render);
 extern uint8_t crush_render_cancel_render_job(struct crush_render *render);
 extern uint8_t crush_render_complete_render_job(struct crush_render *render);
+extern uint8_t crush_render_fail_render_job(struct crush_render *render);
 
 #endif

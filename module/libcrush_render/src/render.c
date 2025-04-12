@@ -203,6 +203,7 @@ uint8_t crush_render_context_refresh(struct crush_render_context *context, struc
 }
 uint8_t crush_render_context_commit(struct crush_render_context *context)
 {
+        light_mutex_do_lock(&context->lock);
         light_debug("writing context '%s' to disk", context->file_path);
         ID_To_String(id_str, context->next_id);
         json_t *obj_data = json_pack(CONTEXT_OBJECT_FMT_WRITE,
@@ -215,7 +216,7 @@ uint8_t crush_render_context_commit(struct crush_render_context *context)
         json_decref(obj_data);
         write(obj_file_handle, "\n", 1);
         close(obj_file_handle);
-
+        light_mutex_do_unlock(&context->lock);
         return 0;
 }
 
@@ -227,7 +228,6 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
                         "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
-                        "s:i,"          //      "job_id"                "2843"
                         "s:s,"          //      "font":                 "sans_helvetica"
                         "s:i,"          //      "font_size"             "14"
                         "s:s,"          //      "display":              "$disp"
@@ -235,7 +235,6 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
                 "}",
                 "name",         object->name,
                 "state",        object->state,
-                "job_id",       object->job_id,
                 "font",         font_str,
                 "font_size",    object->font_size,
                 "display",      display_str,
@@ -250,7 +249,6 @@ void crush_render_object_extract(crush_json_t *data, struct crush_render *object
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
                         "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
-                        "s:i,"          //      "job_id"                "2843"
                         "s:s,"          //      "font":                 "sans_helvetica"
                         "s:i,"          //      "font_size"             "14"
                         "s:s,"          //      "display":              "$disp"
@@ -258,7 +256,6 @@ void crush_render_object_extract(crush_json_t *data, struct crush_render *object
                 "}",
                 "name",         &object->name,
                 "state",        &object->state,
-                "job_id",       &object->job_id,
                 "font",         &font_str,
                 "font_size",    &object->font_size,
                 "display",      &display_str,
@@ -266,8 +263,18 @@ void crush_render_object_extract(crush_json_t *data, struct crush_render *object
         );
         object->data = data;
 
-        object->font = crush_font_get_by_id_string(font_str);
-        object->display = crush_display_get_by_id_string(display_str);
+        // if the font-ID or display-ID has not changed, just do a refresh on the existing object.
+        // this avoids hitting the font and/or display database main indexes unneccessarily
+        if(String_To_ID(font_str) == object->font->id) {
+                crush_font_refresh(object->font);
+        } else {
+                object->font = crush_font_get_by_id_string(font_str);
+        }
+        if(String_To_ID(display_str) == object->display->id) {
+                crush_display_refresh(object->display);
+        } else {
+                object->display = crush_display_get_by_id_string(display_str);
+        }
 }
 struct crush_render *crush_render_object_deserialize(crush_json_t *data)
 {
@@ -285,7 +292,7 @@ void crush_render_init_ctx(struct crush_render_context *context, struct crush_re
         render->context = context;
 
         atomic_store(&render->id, CRUSH_JSON_ID_NEW);
-        render->job_id = RENDER_JOB_NEW;
+        render->render_job = NULL;
         render->state = CRUSH_RENDER_STATE_NEW;
         render->font = font;
         render->font_size = font_size;
@@ -346,7 +353,7 @@ void crush_render_set_font_size(struct crush_render *render, uint8_t font_size)
 }
 // -> default behaviour for state changing actions is to bail out if the
 // action collides with another state change
-uint8_t crush_render_add_render_job(struct crush_render *render)
+uint8_t crush_render_create_render_job(struct crush_render *render)
 {
         uint8_t state = render->state;
         if(state != CRUSH_RENDER_STATE_NEW) {
@@ -360,13 +367,19 @@ uint8_t crush_render_add_render_job(struct crush_render *render)
                 light_error("failed to queue render item '%s': state changed unexpectedly", render->state);
                 return LIGHT_STATE_INVALID;
         }
-        uint8_t job = render_engine_create_render_job(render_engine_default(), render->name, render->font, render->font_size, render->display, callback__render_job_done, render->path);
-        if(job == RENDER_JOB_ERR) {
+        struct render_job *job = render_engine_create_render_job(render_engine_default(), render->name, render->font, render->font_size, render->display, callback__render_job_done, render, render->path);
+        if(!job) {
                 ID_To_String(id_str, render->id);
                 light_debug("failed to queue render job '%s', object ID 0x%s", render->name, id_str);
+                atomic_store(&render->state, CRUSH_RENDER_STATE_ERROR);
+                crush_render_save(render);
+                return LIGHT_EXTERNAL;
         }
+        render->render_job = job;
+        atomic_store(&render->state, CRUSH_RENDER_STATE_RUNNING);
+        crush_render_save(render);
         light_info("rendering font face '%s' at %dpt for display '%s'", render->font->name, render->font_size, render->display->name);
-        render->job_id = job;
+        return LIGHT_OK;
 }
 uint8_t crush_render_cancel_render_job(struct crush_render *render)
 {
@@ -390,16 +403,43 @@ uint8_t crush_render_cancel_render_job(struct crush_render *render)
         }
         render->state = CRUSH_RENDER_STATE_CANCEL;
 
+        crush_render_save(render);
         return LIGHT_OK;
 }
 uint8_t crush_render_complete_render_job(struct crush_render *render)
 {
-        struct render_job *job = render_engine_collect_render_job(render_engine_default());
-        if(!strcmp(job->name, render->name)) {
+        light_debug("processing completed render job '%s'", crush_render_get_name(render));
+        atomic_store(&render->output, render->render_job->result);
+        // in production, by the time this code is run, the render engine should already have written
+        // out the final glyph bitmaps to disk files, so this function will just log the completed
+        // job and update the state of the metadata
 
+        if(render->render_job->res_pitch >= 0) {
+                light_info("echo render job '%s':\n", render->render_job->name);
+                for(uint8_t i = 0; i < strlen(RENDER_CHAR_SET); i++) {
+                        light_info("");
+                        light_info(render->render_job->result[i]);
+                        light_free(render->render_job->result[i]);
+                        light_info("");
+                }
+                light_free(render->render_job->result);
+                light_free(render->render_job);
         }
+        // TODO either make an option to enable notify signals, or just remove this entirely.
+        // the primary crush application use case does not require notification, as the foreground
+        // thread simply polls the render job until its state changes
+        //
+        // pthread_kill(job->caller, CRUSH_RENDER_CALLBACK_SIGNAL);
+        atomic_store(&render->state, CRUSH_RENDER_STATE_DONE);
+        crush_render_save(render);
 }
-
+uint8_t crush_render_fail_render_job(struct crush_render *render)
+{
+        light_debug("processing completed failed job '%s'", crush_render_get_name(render));
+        light_free(render->render_job);
+        atomic_store(&render->state, CRUSH_RENDER_STATE_ERROR);
+        crush_render_save(render);
+}
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)
 {
         print_usage_render();
@@ -448,13 +488,13 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         crush_render_context_commit(context);
 
         // this command queues a new render job for processing
-        crush_render_add_render_job(new_render);
+        crush_render_create_render_job(new_render);
 
         // TODO develop terminal-aware output streams, and use them to display a
         // progress bar reflecting the status of the render job. set the sleep duration
         // in the loop to tune the update frequency of the status bar
         do {
-                light_debug("polling render job '%s', progress: '%d%%'...");
+                light_debug("polling render job '%s', progress: '%d%%'...", new_render->name, (new_render->render_job->progress / new_render->render_job->prog_max));
                 light_platform_sleep_ms(POLLING_INTERVAL_MS);
                 crush_render_refresh(new_render);
         } while(crush_render_get_state(new_render) == CRUSH_RENDER_STATE_RUNNING);
@@ -465,29 +505,19 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
 static void callback__render_job_done(struct render_job *job, void *arg)
 {
         struct crush_render *render = (struct crush_render *)arg;
-        light_debug("processing completed render job '%s'", crush_render_get_name(render));
-
-        atomic_store(&render->output, job->result);
-
-        if(job->res_pitch >= 0) {
-                light_info("echo render job '%s':\n", job->name);
-                for(uint8_t i = 0; i < strlen(RENDER_CHAR_SET); i++) {
-                        light_info("");
-                        light_info(job->result[i]);
-                        light_free(job->result[i]);
-                        light_info("");
-                }
-                light_free(job->result);
-                light_free(job);
+        switch (job->state)
+        {
+        case JOB_DONE:
+                crush_render_complete_render_job(render);
+                break;
+        case JOB_ERROR:
+                crush_render_fail_render_job(render);
+                break;
+        default:
+                light_error("invalid job state: 0x%x", job->state);
+                break;
         }
-        // TODO either make an option to enable notify signals, or just remove this entirely.
-        // the primary crush application use case does not require notification, as the foreground
-        // thread simply polls the render job until its state changes
-        //
-        // pthread_kill(job->caller, CRUSH_RENDER_CALLBACK_SIGNAL);
-        atomic_store(&render->state, CRUSH_RENDER_STATE_DONE);
-        crush_render_context_save(render->context, render);
-        crush_render_context_commit(render->context);
+        crush_render_commit();
 }
 static struct light_cli_invocation_result do_cmd_render_info(struct light_cli_invocation *invoke)
 {

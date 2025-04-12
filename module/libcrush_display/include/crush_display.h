@@ -55,10 +55,15 @@ static inline struct crush_display *crush_display_get_by_name(const uint8_t *nam
         return crush_display_context_get_by_name(crush_display_context(), name);
 }
 extern uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object);
+extern uint8_t crush_display_context_refresh(struct crush_display_context *context, struct crush_display *object);
 extern uint8_t crush_display_context_commit(struct crush_display_context *context);
 static inline uint8_t crush_display_save(struct crush_display *object)
 {
         return crush_display_context_save(object->context, object);
+}
+static inline uint8_t crush_display_refresh(struct crush_display *object)
+{
+        return crush_display_context_refresh(object->context, object);
 }
 static inline uint8_t crush_display_commit()
 {
@@ -66,6 +71,7 @@ static inline uint8_t crush_display_commit()
 }
 
 extern crush_json_t *crush_display_object_serialize(struct crush_display *display);
+extern void crush_display_object_extract(crush_json_t *data, struct crush_display *object);
 extern struct crush_display *crush_display_object_deserialize(crush_json_t *data);
 extern void crush_display_release(struct crush_display *display);
 

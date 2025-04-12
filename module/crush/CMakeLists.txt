@@ -37,3 +37,7 @@ target_link_libraries(
         light_core
         light_cli
 )
+
+if(LIGHT_CORE_ENABLE_SANITIZERS)
+        add_sanitizers(crush)
+endif()

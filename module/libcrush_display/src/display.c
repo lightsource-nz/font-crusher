@@ -146,6 +146,25 @@ uint8_t crush_display_context_save(struct crush_display_context *context, struct
         light_mutex_do_unlock(&context->lock);
         return LIGHT_OK;
 }
+uint8_t crush_display_context_refresh(struct crush_display_context *context, struct crush_display *object)
+{
+        // it is an error to refresh an object from a context if it is already bound to another
+        if(context && object->context && (context != object->context)) {
+                light_error("tried to refresh object '%s' from context '%x' when it is already bound to context '%x'", object->name, context, object->context);
+                return LIGHT_INVALID;
+        }
+        // if crush_display_refresh() is called on an object with no context attached, attach
+        // object to the current context
+        if(!context && !object->context)
+                context = object->context = crush_display_context();
+        if(!context)
+                context = object->context;
+        if(!object->context)
+                object->context = context;
+        
+       crush_display_object_extract(object->json, object);
+       return LIGHT_OK;
+}
 uint8_t crush_display_context_commit(struct crush_display_context *context)
 {
         light_debug("saving context to file '%s'", context->file_path);
@@ -187,17 +206,9 @@ crush_json_t *crush_display_object_serialize(struct crush_display *object)
                 );
         return data;
 }
-// NOTE this function decodes the processed object onto the stack, before allocating heap
-// memory and copying the decoded object back off the stack. the rationale behind this
-// approach is to ensure that heap memory is not allocated until the data record has been
-// successfully unpacked, using the stack as a decoding cache, since on some (embedded)
-// platforms it may be much more costly to allocate heap memory than to push a fairly small
-// object onto the stack, and on some platforms the allocation of a heap object may in fact
-// be irreversible. 
-struct crush_display *crush_display_object_deserialize(crush_json_t *data)
+void crush_display_object_extract(crush_json_t *data, struct crush_display *object)
 {
         double res_h_f, res_v_f;
-        struct crush_display *object = light_alloc(sizeof(struct crush_display));
         int failed = json_unpack(data, 
                 "{"
                         "s:s,"          //      "name"
@@ -220,18 +231,27 @@ struct crush_display *crush_display_object_deserialize(crush_json_t *data)
         );
         if(failed) {
                 light_error("json object decode failed: json_unpack returned nonzero value");
-                return NULL;
+                return;
         }
         object->resolution_h = res_h_f;
         object->resolution_v = res_v_f;
         object->json = data;
+}
+// NOTE this function decodes the processed object onto the stack, before allocating heap
+// memory and copying the decoded object back off the stack. the rationale behind this
+// approach is to ensure that heap memory is not allocated until the data record has been
+// successfully unpacked, using the stack as a decoding cache, since on some (embedded)
+// platforms it may be much more costly to allocate heap memory than to push a fairly small
+// object onto the stack, and on some platforms the allocation of a heap object may in fact
+// be irreversible. 
+struct crush_display *crush_display_object_deserialize(crush_json_t *data)
+{
+        struct crush_display *object = light_alloc(sizeof(struct crush_display));
+        crush_display_object_extract(data, object);
         return object;
 }
 extern void crush_display_release(struct crush_display *display)
 {
-        if(display->json) {
-                json_decref(display->json);
-        }
         light_free(display);
 }
 

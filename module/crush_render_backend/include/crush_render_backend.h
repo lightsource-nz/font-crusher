@@ -50,6 +50,7 @@ struct render_job {
         void (*callback)(struct render_job *, void *);
         uint8_t *output_path;
         uint16_t progress;
+        uint16_t prog_max;
         uint8_t res_pitch;
         uint8_t **result;
 };
@@ -63,6 +64,7 @@ struct render_engine {
         FT_Library freetype;
         atomic_uchar queue_mode;
         atomic_uchar engine_state;
+        light_condition_t cond_online;
         atomic_uchar engine_state_private;
         thrd_t work_thread;
         struct crush_queue work_queue;
@@ -77,10 +79,11 @@ extern uint8_t render_engine_init(struct render_engine *engine, const uint8_t *n
 extern uint8_t render_engine_get_state(struct render_engine *engine);
 extern const uint8_t *render_engine_get_name(struct render_engine *engine);
 extern uint8_t render_engine_engine_is_online(struct render_engine *engine);
+extern void render_engine_engine_wait_for_online(struct render_engine *engine);
 extern struct render_job *render_engine_get_active_job(struct render_engine *engine);
 extern uint8_t render_engine_get_job_count(struct render_engine *engine);
 extern struct render_job *render_engine_get_job(struct render_engine *engine, uint8_t id);
-extern uint8_t render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), uint8_t *output_path);
+extern struct render_job *render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), void *cb_arg, uint8_t *output_path);
 // this will block the calling thread until a job becomes available
 extern struct render_job *render_engine_collect_render_job(struct render_engine *engine);
 // this variant is nonblocking, and returns null if no jobs are waiting

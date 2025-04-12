@@ -21,6 +21,17 @@
             }
         },
         {
+            "name": "conf-crush-debug-addrsan",
+            "inherits": [
+                "conf-crush-base",
+                "conf-light-debug-addrsan"
+            ],
+            "cacheVariables": {
+                "COPY_CONTEXT": true,
+                "COPY_CONTEXT_NAME": "test_context_default"
+            }
+        },
+        {
             "name": "conf-crush-debug-nocontext",
             "inherits": [
                 "conf-crush-debug"
@@ -61,6 +72,11 @@
         {
             "name": "build-crush-debug",
             "configurePreset": "conf-crush-debug",
+            "targets": ["crush"]
+        },
+        {
+            "name": "build-crush-debug-addrsan",
+            "configurePreset": "conf-crush-debug-addrsan",
             "targets": ["crush"]
         },
         {

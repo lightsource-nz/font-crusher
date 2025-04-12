@@ -37,6 +37,8 @@ void render_backend_init()
         if(status = render_engine_init(&engine_default, "crush:render_engine_default", true)) {
                 light_fatal("failed to load default rendering engine: error code '%s'", light_error_to_string(status));
         }
+        // TODO make an option to control the behaviour of waiting here for the engine to come online
+        render_engine_engine_wait_for_online(&engine_default);
         light_debug("default render engine loaded successfully");
 }
 void render_backend_shutdown()
@@ -52,11 +54,10 @@ extern struct render_engine *render_engine_default()
 }
 uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bool launch)
 {
-        atomic_store(&engine->engine_state, ENGINE_INIT);
+        engine->engine_state = ENGINE_INIT;
         engine->name = name;
-
+        cnd_init(&engine->cond_online);
         if(launch) {
-                atomic_store(&engine->engine_state, ENGINE_ONLINE);
                 int res = thrd_create(&engine->work_thread, worker__render_work_thread_main, (void *)engine);
                 if(res != thrd_success) {
                         light_error("failed to create render engine worker thread: thrd_create returned value 0x%x", res);
@@ -77,6 +78,17 @@ uint8_t render_engine_engine_is_online(struct render_engine *engine)
 {
         return atomic_load(&engine->engine_state) == ENGINE_ONLINE;
 }
+void render_engine_engine_wait_for_online(struct render_engine *engine)
+{
+        if(engine->engine_state != ENGINE_INIT)
+                return;
+
+        light_mutex_t mutex;
+        light_mutex_init_recursive(&mutex);
+        light_mutex_do_lock(&mutex);
+        cnd_wait(&engine->cond_online, &mutex);
+        light_mutex_do_unlock(&mutex);
+}
 struct render_job *render_engine_get_active_job(struct render_engine *engine)
 {
         return engine->active_job;
@@ -87,7 +99,7 @@ uint8_t render_engine_get_job_count(struct render_engine *engine)
 }
 struct render_job *render_engine_get_job(struct render_engine *engine, uint8_t id)
 {
-        if(id > 0 && id < RENDER_JOB_MAX) {
+        if(id >= 0 && id < RENDER_JOB_MAX) {
                 return crush_queue_peek_idx(&engine->work_queue, id);
         }
         return NULL;
@@ -101,24 +113,28 @@ static int8_t render_job_file_indexof(const uint8_t **files, const uint8_t *name
         }
         return UINT8_MAX;
 }
-uint8_t render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), uint8_t *output_path)
+struct render_job *render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), void *cb_arg, uint8_t *output_path)
 {
         atomic_bool closed = atomic_load(&engine->flag_closed);
         if(closed) {
                 light_warn("failed to queue new render job '%s': render engine '%s' already shutting down");
-                return LIGHT_STATE_INVALID;
+                return NULL;
         }
         struct render_job *job = light_alloc(sizeof(struct render_job));
         if(!job) {
-                light_debug("failed to queue new render job '%s': out of memory", name);
-                return LIGHT_NO_MEMORY;
+                light_warn("failed to queue new render job '%s': out of memory", name);
+                return NULL;
         }
         job->caller = thrd_current();
+        job->callback = callback;
+        job->cb_arg = cb_arg;
         job->name = name;
         job->font = font,
         job->font_size = font_size;
         job->display = target_display;
         job->output_path = output_path;
+        job->progress = 0;
+        job->prog_max = sizeof(RENDER_CHAR_SET);
 
         DIR *outdir = opendir(job->output_path);
         if(!outdir) {
@@ -132,10 +148,10 @@ uint8_t render_engine_create_render_job(struct render_engine *engine, const uint
         if(err) {
                 light_debug("failed to queue render job '%s'", job->name);
                 light_free(job);
-                return LIGHT_NO_RESOURCE;
+                return NULL;
         }
-        light_debug("render job '%s' queued successfully at system time %d", name, light_platform_get_time_since_init());
-        return LIGHT_OK;
+        light_debug("render job '%s' queued successfully at system time %d", job->name, light_platform_get_time_since_init());
+        return job;
 }
 struct render_job *render_engine_collect_render_job(struct render_engine *engine)
 {
@@ -245,6 +261,7 @@ static int worker__render_work_thread_main(void *arg)
         this_engine = (struct render_engine *)arg;
         light_debug("loading worker thread for render engine '%s'", this_engine->name);
         atomic_store(&this_engine->engine_state, ENGINE_INIT);
+        atomic_thread_fence(memory_order_release);
         int err;
         if(err = FT_Init_FreeType(&this_engine->freetype)) {
                 light_error("failed to initialise the freetype2 typesetting library: FT_Init_FreeType() returned value %d", err);
@@ -256,18 +273,18 @@ static int worker__render_work_thread_main(void *arg)
 
         crush_queue_init(&this_engine->work_queue);
         crush_queue_init(&this_engine->result_queue);
-        atomic_store(&this_engine->engine_state, ENGINE_ONLINE);
-        atomic_signal_fence(memory_order_release);
         struct sigaction sigact_suspend;
         sigact_suspend.sa_handler = signal__worker__render_engine_signal_handler;
         sigaction(SIGNAL_SUSPEND, &sigact_suspend, NULL);
         struct sigaction sigact_shutdown;
         sigact_shutdown.sa_handler = signal__worker__render_engine_signal_handler;
         sigaction(SIGNAL_SHUTDOWN, &sigact_shutdown, NULL);
+        atomic_store(&this_engine->engine_state, ENGINE_ONLINE);
+        atomic_thread_fence(memory_order_release);
+        cnd_broadcast(&this_engine->cond_online);
         while(1) {
                 atomic_store(&this_engine->engine_state_private, STATE_READ);
                 atomic_signal_fence(memory_order_release);
-                
                 worker__render_engine_event_handle(this_engine);
                 // check in case the queue was closed while the worker was sleeping
                 if(this_engine->flag_closed && crush_queue_empty(&this_engine->work_queue))
@@ -306,6 +323,7 @@ static void worker__render_engine_event_handle(struct render_engine *engine)
 }
 static void worker__render_job_process(struct render_engine *engine, struct render_job *job)
 {
+
         light_debug("running render job '%s'", job->name);
         FT_Face face = NULL;
         // assert (job->state == JOB_READY)
@@ -331,8 +349,12 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 // err = FT_Load_Glyph(face, char_list[i], load_flags);
                 // FT_Outline_Translate(face->glyph->outline, face->glyph->metrics.)
                 err = FT_Load_Char(face, char_list[i], load_flags);
-                // TODO handle error condition here
-                // if(err != 0) { ...
+                if(err) {
+                        light_error("job '%s' rendering failed: FT_Load_Char() returned code 0x%x: %s", job->name, err, FT_Error_String(err));
+                        job->state = JOB_ERROR;
+                        job->callback(job, job->cb_arg);
+                        return;
+                }
 
                 // -> this will be set again by each successive glyph dumped by this render job,
                 //    but the value will be correct
