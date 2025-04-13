@@ -56,6 +56,7 @@ uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bo
 {
         engine->engine_state = ENGINE_INIT;
         engine->name = name;
+        light_mutex_init_recursive(&engine->lock);
         cnd_init(&engine->cond_online);
         if(launch) {
                 int res = thrd_create(&engine->work_thread, worker__render_work_thread_main, (void *)engine);
@@ -65,6 +66,15 @@ uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bo
                 }
         }
         return LIGHT_OK;
+}
+uint8_t render_engine_init_launch(struct render_engine *engine, const uint8_t *name)
+{
+        render_engine_init(engine, name, true);
+        light_mutex_do_lock(&engine->lock);
+        if(render_engine_get_engine_state(engine) != ENGINE_ONLINE) {
+                light_condition_wait(&engine->cond_online, &engine->lock);
+        }
+        light_mutex_do_unlock(&engine->lock);
 }
 uint8_t render_engine_get_engine_state(struct render_engine *engine)
 {

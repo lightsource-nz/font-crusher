@@ -56,6 +56,8 @@ struct render_job {
 };
 
 struct render_engine {
+        light_mutex_t lock;
+        light_condition_t cond_online;
         atomic_bool flag_blocking;
         atomic_bool flag_closed;
         atomic_bool flag_suspend;
@@ -64,7 +66,6 @@ struct render_engine {
         FT_Library freetype;
         atomic_uchar queue_mode;
         atomic_uchar engine_state;
-        light_condition_t cond_online;
         atomic_uchar engine_state_private;
         thrd_t work_thread;
         struct crush_queue work_queue;
@@ -76,7 +77,8 @@ extern void render_backend_shutdown();
 extern struct render_engine *render_engine_default();
 
 extern uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bool launch);
-extern uint8_t render_engine_get_state(struct render_engine *engine);
+extern uint8_t render_engine_init_launch(struct render_engine *engine, const uint8_t *name);
+extern uint8_t render_engine_get_engine_state(struct render_engine *engine);
 extern const uint8_t *render_engine_get_name(struct render_engine *engine);
 extern uint8_t render_engine_engine_is_online(struct render_engine *engine);
 extern void render_engine_engine_wait_for_online(struct render_engine *engine);
