@@ -8,15 +8,11 @@
 #endif
 
 #include <pthread.h>
-#include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
-
-#define SIGNAL_SUSPEND          SIGUSR1
-#define SIGNAL_SHUTDOWN         SIGUSR2
 
 #define WORKER_OK               0
 #define WORKER_ERR              1
@@ -28,7 +24,6 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job);
 static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap);
 static void worker__render_dump_glyph(struct render_job *job);
-static void signal__worker__render_engine_signal_handler(int signo);
 
 void render_backend_init()
 {
@@ -211,7 +206,7 @@ void render_engine_cmd_suspend_processing(struct render_engine *engine)
         // if the CX operation fails, the engine is no longer in ONLINE state, so no point in re-trying
         if(atomic_compare_exchange_strong(&engine->engine_state, &engine_state, ENGINE_SUSPEND)) {
                 light_debug("suspending render engine '%s'", render_engine_get_name(engine));
-                pthread_kill(engine->work_thread, SIGNAL_SUSPEND);
+                atomic_store(&engine->flag_suspend, true);
         } else {
                 light_warn("suspend failed: engine state changed unexpectedly");
         }
@@ -226,15 +221,22 @@ void render_engine_cmd_resume_processing(struct render_engine *engine)
         // if the CX operation fails, the engine is no longer in SUSPEND state, so no point in re-trying
         if(atomic_compare_exchange_strong(&engine->engine_state, &engine_state, ENGINE_ONLINE)) {
                 light_debug("resuming render engine worker '%s'", render_engine_get_name(engine));
-                pthread_kill(engine->work_thread, SIGNAL_SUSPEND);
+                atomic_store(&engine->flag_suspend, false);
         } else {
                 light_warn("resume failed: engine state changed unexpectedly");
+        }
+}
+static void _render_engine_signal_shutdown(struct render_engine *engine)
+{
+        atomic_bool flag_val = false;
+        if(atomic_compare_exchange_strong(&engine->flag_closed, &flag_val, true)) {
+                crush_queue_close(&engine->work_queue);
         }
 }
 void render_engine_cmd_shutdown(struct render_engine *engine)
 {
         light_debug("shutting down worker for render engine '%s'", engine->name);
-        pthread_kill(engine->work_thread, SIGNAL_SHUTDOWN);
+        _render_engine_signal_shutdown(engine);
         int exit_code;
         thrd_join(engine->work_thread, &exit_code);
         if(exit_code) {
@@ -246,7 +248,7 @@ void render_engine_cmd_shutdown(struct render_engine *engine)
 void render_engine_cmd_shutdown_async(struct render_engine *engine)
 {
         light_debug("shutting down worker for render engine '%s'", engine->name);
-        pthread_kill(engine->work_thread, SIGNAL_SHUTDOWN);
+        _render_engine_signal_shutdown(engine);
 }
 void render_engine_cmd_wait_for_shutdown(struct render_engine *engine)
 {
@@ -283,12 +285,6 @@ static int worker__render_work_thread_main(void *arg)
 
         crush_queue_init(&this_engine->work_queue);
         crush_queue_init(&this_engine->result_queue);
-        struct sigaction sigact_suspend;
-        sigact_suspend.sa_handler = signal__worker__render_engine_signal_handler;
-        sigaction(SIGNAL_SUSPEND, &sigact_suspend, NULL);
-        struct sigaction sigact_shutdown;
-        sigact_shutdown.sa_handler = signal__worker__render_engine_signal_handler;
-        sigaction(SIGNAL_SHUTDOWN, &sigact_shutdown, NULL);
         atomic_store(&this_engine->engine_state, ENGINE_ONLINE);
         atomic_thread_fence(memory_order_release);
         cnd_broadcast(&this_engine->cond_online);
@@ -412,34 +408,4 @@ static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap)
                 strcat(output_buffer, "\n");
         }
         return output_buffer;
-}
-// -> signal handler, handled on worker thread stack
-// -> SIGNAL_SUSPEND (SIGUSR1) is defined as a suspend signal, so we pause any work in progress and halt workers.
-//    if SIGNAL_SUSPEND is received again, we reset the suspend flag and resume processing
-// -> SIGNAL_SHUTDOWN (SIGUSR2) is defined as a shutdown signal, so we close the input side of the queue and process
-// all remaining jobs before halting
-static void signal__worker__render_engine_signal_handler(int signo)
-{
-        uint8_t flag_val;
-        uint8_t engine_state = atomic_load(&this_engine->engine_state_private);
-        switch (signo)
-        {
-        case SIGNAL_SUSPEND:
-                flag_val = false;
-                if(atomic_compare_exchange_strong(&this_engine->flag_suspend, &flag_val, true)) {
-                        // code in this section will run exactly once when the engine suspend state becomes true
-                } else {
-                        // code here runs only if the suspend flag was already set
-                        atomic_store(&this_engine->flag_suspend, false);
-                        return;
-                }
-                break;
-        
-        case SIGNAL_SHUTDOWN:
-                flag_val = false;
-                if(atomic_compare_exchange_strong(&this_engine->flag_closed, &flag_val, true)) {
-                        crush_queue_close(&this_engine->work_queue);
-                }
-                break;
-        }
 }

@@ -14,6 +14,29 @@
 #include <threads.h>
 #include <stdatomic.h>
 
+// mingw/Windows ships neither glibc's GNU extensions nor a POSIX mkdir(path, mode);
+// shim the handful crush relies on here so any translation unit that pulls in
+// crush_common.h gets them for free.
+#ifdef _WIN32
+#include <direct.h>
+#define realpath(path, resolved) _fullpath((resolved), (path), 0)
+#define mkdir(path, mode) _mkdir(path)
+static inline char *strndup(const char *s, size_t n)
+{
+        size_t len = strnlen(s, n);
+        char *copy = malloc(len + 1);
+        if (!copy) return NULL;
+        memcpy(copy, s, len);
+        copy[len] = '\0';
+        return copy;
+}
+static inline const char *strerrorname_np(int errnum)
+{
+        // Windows CRT has no errno-to-macro-name lookup; leave blank rather than NULL (%s-unsafe)
+        return "";
+}
+#endif
+
 #define CRUSH_OK                0
 #define CRUSH_ERR_QUEUE         1
 

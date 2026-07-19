@@ -129,7 +129,7 @@ static struct crush_context *crush_load_context_from_filesystem(struct crush_con
         // first, we try the path indicated by environment variable ${CRUSH_CONTEXT}.
         // the value of ${CRUSH_CONTEXT}, if it is defined, is authoritative; all other search
         // paths are merely fallbacks if ${CRUSH_CONTEXT} is not set
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(_WIN32)
         context_root = secure_getenv(CRUSH_EV_CONTEXT);
 #else
         context_root = getenv(CRUSH_EV_CONTEXT);

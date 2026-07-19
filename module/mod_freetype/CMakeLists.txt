@@ -1,6 +1,5 @@
 
-
-find_package(Freetype REQUIRED CONFIG)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/freetype freetype)
 
 add_library(mod_freetype INTERFACE)
 

@@ -33,9 +33,11 @@ static void crush_app_event(const struct light_module *mod, uint8_t event_id, vo
         {
         case LF_EVENT_APP_LAUNCH:
                 struct light_event_app_launch *event = (struct light_event_app_launch *)arg;
-                
+                light_info("Received LF_EVENT_APP_LAUNCH, argument count: %d", event->argc);
                 break;
-        
+        case LF_EVENT_APP_SHUTDOWN:
+                light_info("Received LF_EVENT_APP_SHUTDOWN", NULL);
+                break;
         default:
                 break;
         }
@@ -58,5 +60,5 @@ struct light_command *crush_command_root()
 }
 static void print_usage()
 {
-    printf("Usage: font_crusher export [-s <size>] [-o <name>] <font_filename> <output_directory>\n");
+    light_info("Usage: crush export [-s <size>] [-o <name>] <font_filename> <output_directory>\n", NULL);
 }

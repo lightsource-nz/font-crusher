@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 #include <threads.h>
-#include <freetype2/ft2build.h>
+#include <ft2build.h>
 #include <freetype/freetype.h>
 
 #define ENGINE_INIT             -1

@@ -6,6 +6,11 @@ include(${LIGHT_PATH}/external/light_preinit.cmake)
 
 project(font-crusher C)
 
+# on Windows, DLLs must live alongside the executables that load them at
+# runtime; colocate all runtime artifacts (exes + shared libs) so e.g.
+# jansson's DLL is found next to crush.exe without needing PATH changes
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 add_subdirectory(${LIGHT_PATH}/ light_framework)
 
 set(TEST_MODULE_DIR "${CMAKE_CURRENT_LIST_DIR}/test_module")
