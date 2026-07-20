@@ -52,7 +52,7 @@ static uint8_t crush_app_main(struct light_application *app)
 }
 static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke){
         print_usage();
-        return Result_Error;
+        return Result_Success;
 }
 struct light_command *crush_command_root()
 {
