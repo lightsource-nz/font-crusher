@@ -1,4 +1,8 @@
 {
+    "cmake.configurePreset": "user-crush-debug",
+    "cmake.environment": {
+        "PATH": "C:\\Users\\aful018\\tools\\w64devkit\\bin;${env:PATH}"
+    },
     "cmake.configureSettings": {
         
         "PICO_SDK_PATH": "../../pico-sdk",
@@ -6,6 +10,10 @@
     },
     "cmake.configureEnvironment": {
         "LIGHT_PATH": "../light_framework_mk3"
+    },
+    "terminal.integrated.env.windows": {
+        "Path": "C:\\Users\\aful018\\tools\\w64devkit\\bin;${env:PATH}",
+        "PATH": "C:\\Users\\aful018\\tools\\w64devkit\\bin;${env:PATH}"
     },
     "files.associations": {
         "crush.h": "c",

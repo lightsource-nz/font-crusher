@@ -193,7 +193,8 @@ crush_json_t *crush_display_object_serialize(struct crush_display *object)
                         "s:f,"          //      "ppi_h": 128
                         "s:f,"          //      "ppi_v": 64
                         "s:f,"          //      "width_mm": 25
-                        "s:f"           //      "height_mm": 11
+                        "s:f,"          //      "height_mm": 11
+                        "s:i"           //      "pixel_depth": 1
                 "}",
                 "name",                 object->name,
                 "description",          object->description,
@@ -202,14 +203,15 @@ crush_json_t *crush_display_object_serialize(struct crush_display *object)
                 "ppi_h",                object->ppi_h,
                 "ppi_v",                object->ppi_v,
                 "width_mm",             object->width_mm,
-                "height_mm",            object->height_mm
+                "height_mm",            object->height_mm,
+                "pixel_depth",          object->pixel_depth
                 );
         return data;
 }
 void crush_display_object_extract(crush_json_t *data, struct crush_display *object)
 {
-        double res_h_f, res_v_f;
-        int failed = json_unpack(data, 
+        double res_h_f, res_v_f, pixel_depth_f;
+        int failed = json_unpack(data,
                 "{"
                         "s:s,"          //      "name"
                         "s:s,"          //      "description"
@@ -218,7 +220,8 @@ void crush_display_object_extract(crush_json_t *data, struct crush_display *obje
                         "s:f,"          //      "ppi_h"
                         "s:f,"           //      "ppi_v"
                         "s:f,"          //      "width_mm"
-                        "s:f"           //      "height_mm"
+                        "s:f,"          //      "height_mm"
+                        "s:f"           //      "pixel_depth"
                 "}",
                 "name",                 &object->name,
                 "description",          &object->description,
@@ -227,7 +230,8 @@ void crush_display_object_extract(crush_json_t *data, struct crush_display *obje
                 "ppi_h",                &object->ppi_h,
                 "ppi_v",                &object->ppi_v,
                 "width_mm",             &object->width_mm,
-                "height_mm",            &object->height_mm
+                "height_mm",            &object->height_mm,
+                "pixel_depth",          &pixel_depth_f
         );
         if(failed) {
                 light_error("json object decode failed: json_unpack returned nonzero value");
@@ -235,6 +239,7 @@ void crush_display_object_extract(crush_json_t *data, struct crush_display *obje
         }
         object->resolution_h = res_h_f;
         object->resolution_v = res_v_f;
+        object->pixel_depth = pixel_depth_f;
         object->json = data;
 }
 // NOTE this function decodes the processed object onto the stack, before allocating heap
@@ -289,10 +294,17 @@ static struct light_cli_invocation_result do_cmd_display(struct light_cli_invoca
         return Result_Alias(&cmd_crush_display_list);
 }
 #define PIXEL_DEPTH_DEFAULT     1
+// used when '--dimension' is not given: rather than deriving a bogus density from an assumed
+// 1:1 mm-to-pixel ratio (which used to make FT_Set_Char_Size() produce near-zero-size glyphs),
+// fall back to a conventional screen density so rendering still produces real output
+#define DISPLAY_DEFAULT_PPI     96.0
+#define MM_PER_INCH             25.4
 static struct light_cli_invocation_result do_cmd_display_add(struct light_cli_invocation *invoke)
 {
-        uint16_t dimension_h;
-        uint16_t dimension_v;
+        double dimension_h;
+        double dimension_v;
+        double ppi_h;
+        double ppi_v;
         uint8_t ov_pixel_depth;
         const uint8_t *ov_description;
         const uint8_t *ov_dimension;
@@ -310,21 +322,35 @@ static struct light_cli_invocation_result do_cmd_display_add(struct light_cli_in
                 ov_description = "";
         }
         if(light_cli_invocation_option_is_set(invoke, "dimension")) {
+                // '--dimension' gives the display's physical size in millimeters, as "<width>x<height>"
                 ov_dimension = light_cli_invocation_get_option_value(invoke, "dimension");
                 uint8_t div_index = strcspn(ov_dimension, "xX, *");
                 if(!(div_index > 0)) {
                         light_error("option 'dimension' must be two whole numbers separated by an 'x' or '*' character");
                         return Result_Error;
                 }
-                uint8_t *dimh_str = light_alloc(div_index);
-                uint8_t *dimv_str = light_alloc(strlen(dimh_str + div_index));
+                uint8_t *dimh_str = light_alloc(div_index + 1);
+                // the separator itself sits at ov_dimension[div_index]; the height substring
+                // starts one past it, not at it (skipping it, not including it)
+                uint8_t *dimv_str = light_alloc(strlen(ov_dimension + div_index + 1) + 1);
                 strncpy(dimh_str, ov_dimension, div_index);
-                strcpy(dimv_str, (ov_dimension + div_index));
-                dimension_h = atoi(dimh_str);
-                dimension_v = atoi(dimv_str);
+                dimh_str[div_index] = '\0';
+                strcpy(dimv_str, (ov_dimension + div_index + 1));
+                dimension_h = atof(dimh_str);
+                dimension_v = atof(dimv_str);
+                light_free(dimh_str);
+                light_free(dimv_str);
+                if(!(dimension_h > 0) || !(dimension_v > 0)) {
+                        light_error("option 'dimension' must be two positive numbers");
+                        return Result_Error;
+                }
+                ppi_h = (resolution_x * MM_PER_INCH) / dimension_h;
+                ppi_v = (resolution_y * MM_PER_INCH) / dimension_v;
         } else {
-                dimension_h = resolution_x;
-                dimension_v = resolution_y;
+                ppi_h = DISPLAY_DEFAULT_PPI;
+                ppi_v = DISPLAY_DEFAULT_PPI;
+                dimension_h = (resolution_x * MM_PER_INCH) / ppi_h;
+                dimension_v = (resolution_y * MM_PER_INCH) / ppi_v;
         }
         struct crush_display *display = light_alloc(sizeof(struct crush_display));
         display->name = disp_name;
@@ -334,9 +360,6 @@ static struct light_cli_invocation_result do_cmd_display_add(struct light_cli_in
         display->width_mm = dimension_h;
         display->height_mm = dimension_v;
 
-        // TODO properly define measurement units and conversions for this calculation
-        uint16_t ppi_h = dimension_h / resolution_x;
-        uint16_t ppi_v = dimension_v / resolution_y;
         crush_display_init(display, disp_name, ov_description, resolution_x, resolution_y, ppi_h, ppi_v, ov_pixel_depth);
 
         crush_display_save(display);

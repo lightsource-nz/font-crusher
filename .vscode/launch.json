@@ -31,6 +31,16 @@
                     "description": "Set Disassembly Flavor to Intel",
                     "text": "-gdb-set disassembly-flavor intel",
                     "ignoreFailures": true
+                },
+                {
+                    "description": "Avoid iconv errors when printing locals (target-charset must be a total encoding)",
+                    "text": "-gdb-set target-charset ISO-8859-1",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Force host-charset to a name w64devkit's iconv recognizes (avoid CP65001 alias)",
+                    "text": "-gdb-set host-charset UTF-8",
+                    "ignoreFailures": true
                 }
             ]
         },
@@ -62,6 +72,16 @@
                 {
                     "description": "Set Disassembly Flavor to Intel",
                     "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Avoid iconv errors when printing locals (target-charset must be a total encoding)",
+                    "text": "-gdb-set target-charset ISO-8859-1",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Force host-charset to a name w64devkit's iconv recognizes (avoid CP65001 alias)",
+                    "text": "-gdb-set host-charset UTF-8",
                     "ignoreFailures": true
                 }
             ]
@@ -95,6 +115,16 @@
                     "description": "Set Disassembly Flavor to Intel",
                     "text": "-gdb-set disassembly-flavor intel",
                     "ignoreFailures": true
+                },
+                {
+                    "description": "Avoid iconv errors when printing locals (target-charset must be a total encoding)",
+                    "text": "-gdb-set target-charset ISO-8859-1",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Force host-charset to a name w64devkit's iconv recognizes (avoid CP65001 alias)",
+                    "text": "-gdb-set host-charset UTF-8",
+                    "ignoreFailures": true
                 }
             ]
         },
@@ -126,6 +156,16 @@
                 {
                     "description": "Set Disassembly Flavor to Intel",
                     "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Avoid iconv errors when printing locals (target-charset must be a total encoding)",
+                    "text": "-gdb-set target-charset ISO-8859-1",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Force host-charset to a name w64devkit's iconv recognizes (avoid CP65001 alias)",
+                    "text": "-gdb-set host-charset UTF-8",
                     "ignoreFailures": true
                 }
             ]

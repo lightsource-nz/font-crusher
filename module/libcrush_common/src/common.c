@@ -355,6 +355,11 @@ extern uint8_t *crush_path_join_n(uint8_t n, ...)
 #include <unistd.h>
 #include <errno.h>
 
+#ifndef O_BINARY
+// POSIX has no text/binary distinction; only Windows CRTs need this flag, where its absence
+// causes read() to stop at the first 0x1A (Ctrl-Z) byte, silently truncating binary files
+#define O_BINARY 0
+#endif
 uint8_t crush_file_copy(const char *to, const char *from)
 {
         int fd_to, fd_from;
@@ -362,11 +367,11 @@ uint8_t crush_file_copy(const char *to, const char *from)
         ssize_t nread;
         int saved_errno;
 
-        fd_from = open(from, O_RDONLY);
+        fd_from = open(from, O_RDONLY | O_BINARY);
         if (fd_from < 0)
                 return -1;
 
-        fd_to = open(to, O_WRONLY | O_CREAT | O_EXCL, 0666);
+        fd_to = open(to, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0666);
         if (fd_to < 0)
                 goto out_error;
 

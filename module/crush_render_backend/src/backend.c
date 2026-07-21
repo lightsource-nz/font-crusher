@@ -118,6 +118,23 @@ static int8_t render_job_file_indexof(const uint8_t **files, const uint8_t *name
         }
         return UINT8_MAX;
 }
+// output_path is typically two levels below the context root (e.g. ".crush/render/<job-name>"),
+// and the intermediate "render" directory doesn't exist in a fresh context, so a single mkdir()
+// (which, unlike "mkdir -p", requires the parent to already exist) silently fails with ENOENT
+static void _mkdir_recursive(const uint8_t *path)
+{
+        uint8_t buf[CRUSH_MAX_PATH_LENGTH];
+        strncpy(buf, path, sizeof(buf) - 1);
+        buf[sizeof(buf) - 1] = '\0';
+        for(uint8_t *p = buf + 1; *p; p++) {
+                if(*p == '/') {
+                        *p = '\0';
+                        mkdir(buf, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+                        *p = '/';
+                }
+        }
+        mkdir(buf, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+}
 struct render_job *render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), void *cb_arg, uint8_t *output_path)
 {
         atomic_bool closed = atomic_load(&engine->flag_closed);
@@ -140,11 +157,12 @@ struct render_job *render_engine_create_render_job(struct render_engine *engine,
         job->output_path = output_path;
         job->progress = 0;
         job->prog_max = sizeof(RENDER_CHAR_SET);
+        job->state = JOB_READY;
 
         DIR *outdir = opendir(job->output_path);
         if(!outdir) {
                 if(errno == ENOENT) {
-                        mkdir(output_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+                        _mkdir_recursive(output_path);
                 }
         } else {
                 closedir(outdir);
@@ -338,8 +356,19 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
         }
         job->progress = UINT16_MAX;
         job->state = JOB_ACTIVE;
-        FT_Error err = FT_New_Face(engine->freetype, job->font->file[job->font->target_file], job->font->face_index, &face);
-        err = FT_Set_Char_Size(face, 0, job->font_size, job->display->ppi_h, job->display->ppi_v);
+        // font->file[] holds bare filenames (see crush_font_object_extract()), so the path
+        // must be joined with font->path (the font's storage directory) before use
+        uint8_t *font_file_path = crush_path_join(job->font->path, job->font->file[job->font->target_file]);
+        FT_Error err = FT_New_Face(engine->freetype, font_file_path, job->font->face_index, &face);
+        light_free(font_file_path);
+        if(err) {
+                light_error("job '%s' rendering failed: FT_New_Face() returned code 0x%x: %s", job->name, err, FT_Error_String(err));
+                job->state = JOB_ERROR;
+                job->callback(job, job->cb_arg);
+                return;
+        }
+        // FT_Set_Char_Size() takes sizes in 26.6 fixed-point (1/64th of a point), not whole points
+        err = FT_Set_Char_Size(face, 0, job->font_size * 64, job->display->ppi_h, job->display->ppi_v);
         uint8_t *char_list = RENDER_CHAR_SET;
         uint8_t num_glyphs = strlen(char_list);
         job->result = calloc(sizeof(void *), num_glyphs);
@@ -358,6 +387,7 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 if(err) {
                         light_error("job '%s' rendering failed: FT_Load_Char() returned code 0x%x: %s", job->name, err, FT_Error_String(err));
                         job->state = JOB_ERROR;
+                        FT_Done_Face(face);
                         job->callback(job, job->cb_arg);
                         return;
                 }
@@ -366,11 +396,64 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 //    but the value will be correct
                 job->res_pitch = face->glyph->bitmap.pitch;
                 job->result[i] = worker__render_job_copy_bitmap(face->glyph->bitmap);
-                FT_Done_Face(face);
         }
+        FT_Done_Face(face);
+        worker__render_dump_glyph(job);
         light_debug("rendering complete for job '%s'", job->name);
         atomic_store(&job->state, JOB_DONE);
         job->callback(job, job->cb_arg);
+}
+// builds a filename that reflects the character rendered. three things stop us from just using
+// the character byte itself:
+// -> nine characters are reserved and illegal in Windows filenames: < > : " / \ | ? *
+//    (RENDER_CHAR_SET contains all of them), so those get a short descriptive name instead
+// -> Windows filenames are case-insensitive, so 'A' and 'a' would collide on the same file;
+//    uppercase letters get a "_upper" suffix to keep them distinct from their lowercase pair
+// -> a filename starting with '.' (i.e. the period character on its own) is treated as hidden
+//    by Unix-style tooling (this project's own build/test scripts included), so it would be
+//    invisible in a plain directory listing -- give it a descriptive name too
+static void _glyph_filename(uint8_t c, uint8_t *buf, size_t buf_size)
+{
+        const uint8_t *reserved_name;
+        switch(c) {
+        case '<':  reserved_name = "lt";        break;
+        case '>':  reserved_name = "gt";        break;
+        case ':':  reserved_name = "colon";     break;
+        case '"':  reserved_name = "quote";     break;
+        case '/':  reserved_name = "slash";     break;
+        case '\\': reserved_name = "backslash"; break;
+        case '|':  reserved_name = "pipe";      break;
+        case '?':  reserved_name = "question";  break;
+        case '*':  reserved_name = "asterisk";  break;
+        case '.':  reserved_name = "period";    break;
+        default:   reserved_name = NULL;        break;
+        }
+        if(reserved_name) {
+                snprintf(buf, buf_size, "%s.txt", reserved_name);
+        } else if(c >= 'A' && c <= 'Z') {
+                snprintf(buf, buf_size, "%c_upper.txt", c);
+        } else {
+                snprintf(buf, buf_size, "%c.txt", c);
+        }
+}
+static void worker__render_dump_glyph(struct render_job *job)
+{
+        uint8_t *char_list = RENDER_CHAR_SET;
+        uint8_t num_glyphs = strlen(char_list);
+        for(uint8_t i = 0; i < num_glyphs; i++) {
+                if(!job->result[i]) continue;
+                uint8_t filename[16];
+                _glyph_filename(char_list[i], filename, sizeof(filename));
+                uint8_t *file_path = crush_path_join(job->output_path, filename);
+                FILE *f = fopen(file_path, "wb");
+                if(f) {
+                        fputs(job->result[i], f);
+                        fclose(f);
+                } else {
+                        light_warn("job '%s': failed to write glyph dump to '%s'", job->name, file_path);
+                }
+                light_free(file_path);
+        }
 }
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job)
 {
@@ -378,16 +461,22 @@ static void worker__render_job_complete(struct render_engine *engine, struct ren
 }
 static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap)
 {
-        uint8_t output_length = (bitmap.rows + 1) * bitmap.width + 1;
+        // one char per pixel column, plus one '\n' per row, plus a null terminator
+        uint16_t output_length = bitmap.rows * (bitmap.width + 1) + 1;
         uint8_t *output_buffer = light_alloc(output_length);
-        output_buffer[output_length] = '\0';
+        output_buffer[0] = '\0';
+        // when width isn't a multiple of 8, the row's last byte only has its high 'trailing_bits'
+        // bits within the glyph -- the rest is padding beyond the glyph's right edge
+        uint8_t full_bytes = bitmap.width / 8;
+        uint8_t trailing_bits = bitmap.width % 8;
+        uint8_t byte_count = full_bytes + (trailing_bits ? 1 : 0);
         for(uint8_t i = 0; i < bitmap.rows; i++) {
                 // use pitch to ensure correct buffer alignment when width is not a multiple of 8
                 uint8_t *source_row = bitmap.buffer + i * abs(bitmap.pitch);
-                for(uint8_t j = 0; j < (bitmap.width / 8); j++) {
+                for(uint8_t j = 0; j < byte_count; j++) {
                         uint8_t source_byte = source_row[j];
-                        bool last_byte = (j + 1 == bitmap.width / 8);
-                        uint8_t bits = bitmap.width % 8;
+                        bool last_byte = (j + 1 == byte_count);
+                        uint8_t bits = (last_byte && trailing_bits) ? trailing_bits : 8;
                         if(bits == 0) continue;
                         (source_byte & 0x80)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
                         if(bits == 1) continue;
