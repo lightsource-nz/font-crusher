@@ -50,23 +50,26 @@ set_property(TEST cmd_render_new PROPERTY FAIL_REGULAR_EXPRESSION "\\[  ERROR\\]
 
 # the render job reporting "complete" only means FreeType didn't error -- it doesn't guarantee
 # the glyph data actually written to disk is real (see check_glyph_output.cmake for the bug
-# history this guards against), so check the file directly rather than trusting the log alone
+# history this guards against), so check the exported font.h/font.c directly rather than
+# trusting the log alone
 add_test(
         NAME cmd_render_new__check_output_file
         COMMAND ${CMAKE_COMMAND}
-                "-DGLYPH_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/A_upper.txt"
+                "-DHEADER_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/font.h"
+                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/font.c"
                 -P "${CMAKE_CURRENT_LIST_DIR}/check_glyph_output.cmake"
 )
 set_property(TEST cmd_render_new__check_output_file PROPERTY FIXTURES_REQUIRED cmd_render_new_ctx)
 set_property(TEST cmd_render_new__check_output_file PROPERTY DEPENDS cmd_render_new)
 
 # guards against a font (or pipeline bug) rendering visually distinct characters identically --
-# see check_glyphs_differ.cmake for the history behind this check
+# see check_glyphs_differ.cmake for the history behind this check. 0x61 = 'a', 0x41 = 'A'
 add_test(
         NAME cmd_render_new__check_case_distinct
         COMMAND ${CMAKE_COMMAND}
-                "-DFILE_A=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/a.txt"
-                "-DFILE_B=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/A_upper.txt"
+                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/font.c"
+                "-DGLYPH_A=0x61"
+                "-DGLYPH_B=0x41"
                 -P "${CMAKE_CURRENT_LIST_DIR}/check_glyphs_differ.cmake"
 )
 set_property(TEST cmd_render_new__check_case_distinct PROPERTY FIXTURES_REQUIRED cmd_render_new_ctx)

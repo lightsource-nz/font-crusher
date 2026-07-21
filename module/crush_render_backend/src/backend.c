@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <ctype.h>
 
 #define WORKER_OK               0
 #define WORKER_ERR              1
@@ -22,8 +23,8 @@ static struct render_engine engine_default;
 static int worker__render_work_thread_main(void *arg);
 static void worker__render_job_process(struct render_engine *engine, struct render_job *job);
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job);
-static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap);
-static void worker__render_dump_glyph(struct render_job *job);
+static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap, uint8_t cell_width, uint8_t cell_height);
+static void worker__render_export_c_source(struct render_job *job);
 
 void render_backend_init()
 {
@@ -369,6 +370,13 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
         }
         // FT_Set_Char_Size() takes sizes in 26.6 fixed-point (1/64th of a point), not whole points
         err = FT_Set_Char_Size(face, 0, job->font_size * 64, job->display->ppi_h, job->display->ppi_v);
+        // the glyph cell size is a fixed input to the rest of this pipeline, derived once from
+        // the font's own nominal metrics -- NOT computed by scanning actual rendered glyphs --
+        // so every glyph below is rasterized directly into this same size (26.6 fixed-point,
+        // hence the >> 6)
+        job->cell_width = face->size->metrics.max_advance >> 6;
+        job->cell_height = face->size->metrics.height >> 6;
+        job->res_pitch = (job->cell_width + 7) / 8;
         uint8_t *char_list = RENDER_CHAR_SET;
         uint8_t num_glyphs = strlen(char_list);
         job->result = calloc(sizeof(void *), num_glyphs);
@@ -391,110 +399,142 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                         job->callback(job, job->cb_arg);
                         return;
                 }
-
-                // -> this will be set again by each successive glyph dumped by this render job,
-                //    but the value will be correct
-                job->res_pitch = face->glyph->bitmap.pitch;
-                job->result[i] = worker__render_job_copy_bitmap(face->glyph->bitmap);
+                job->result[i] = worker__render_job_copy_bitmap(face->glyph->bitmap, job->cell_width, job->cell_height);
         }
         FT_Done_Face(face);
-        worker__render_dump_glyph(job);
+        worker__render_export_c_source(job);
         light_debug("rendering complete for job '%s'", job->name);
         atomic_store(&job->state, JOB_DONE);
         job->callback(job, job->cb_arg);
-}
-// builds a filename that reflects the character rendered. three things stop us from just using
-// the character byte itself:
-// -> nine characters are reserved and illegal in Windows filenames: < > : " / \ | ? *
-//    (RENDER_CHAR_SET contains all of them), so those get a short descriptive name instead
-// -> Windows filenames are case-insensitive, so 'A' and 'a' would collide on the same file;
-//    uppercase letters get a "_upper" suffix to keep them distinct from their lowercase pair
-// -> a filename starting with '.' (i.e. the period character on its own) is treated as hidden
-//    by Unix-style tooling (this project's own build/test scripts included), so it would be
-//    invisible in a plain directory listing -- give it a descriptive name too
-static void _glyph_filename(uint8_t c, uint8_t *buf, size_t buf_size)
-{
-        const uint8_t *reserved_name;
-        switch(c) {
-        case '<':  reserved_name = "lt";        break;
-        case '>':  reserved_name = "gt";        break;
-        case ':':  reserved_name = "colon";     break;
-        case '"':  reserved_name = "quote";     break;
-        case '/':  reserved_name = "slash";     break;
-        case '\\': reserved_name = "backslash"; break;
-        case '|':  reserved_name = "pipe";      break;
-        case '?':  reserved_name = "question";  break;
-        case '*':  reserved_name = "asterisk";  break;
-        case '.':  reserved_name = "period";    break;
-        default:   reserved_name = NULL;        break;
-        }
-        if(reserved_name) {
-                snprintf(buf, buf_size, "%s.txt", reserved_name);
-        } else if(c >= 'A' && c <= 'Z') {
-                snprintf(buf, buf_size, "%c_upper.txt", c);
-        } else {
-                snprintf(buf, buf_size, "%c.txt", c);
-        }
-}
-static void worker__render_dump_glyph(struct render_job *job)
-{
-        uint8_t *char_list = RENDER_CHAR_SET;
-        uint8_t num_glyphs = strlen(char_list);
-        for(uint8_t i = 0; i < num_glyphs; i++) {
-                if(!job->result[i]) continue;
-                uint8_t filename[16];
-                _glyph_filename(char_list[i], filename, sizeof(filename));
-                uint8_t *file_path = crush_path_join(job->output_path, filename);
-                FILE *f = fopen(file_path, "wb");
-                if(f) {
-                        fputs(job->result[i], f);
-                        fclose(f);
-                } else {
-                        light_warn("job '%s': failed to write glyph dump to '%s'", job->name, file_path);
-                }
-                light_free(file_path);
-        }
 }
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job)
 {
 
 }
-static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap)
+static bool _bitmap_get_pixel(const uint8_t *buffer, int pitch, uint8_t x, uint8_t y)
 {
-        // one char per pixel column, plus one '\n' per row, plus a null terminator
-        uint16_t output_length = bitmap.rows * (bitmap.width + 1) + 1;
+        uint8_t byte = buffer[y * abs(pitch) + x / 8];
+        return (byte >> (7 - (x % 8))) & 1;
+}
+static void _bitmap_set_pixel(uint8_t *buffer, uint8_t pitch, uint8_t x, uint8_t y)
+{
+        buffer[y * pitch + x / 8] |= (1 << (7 - (x % 8)));
+}
+// copies 'bitmap' into a freshly-allocated, zeroed buffer of exactly (cell_width+7)/8 *
+// cell_height bytes (1 bit per pixel, MSB-first, row-major), anchored at the top-left corner.
+// 'bitmap' is clipped if it's larger than the target cell in either dimension -- every glyph
+// must come out the same size, since cell_width/cell_height are a fixed pipeline input (see
+// worker__render_job_process()), not something derived per-glyph
+static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap, uint8_t cell_width, uint8_t cell_height)
+{
+        uint8_t dest_pitch = (cell_width + 7) / 8;
+        uint16_t output_length = (uint16_t)dest_pitch * cell_height;
         uint8_t *output_buffer = light_alloc(output_length);
-        output_buffer[0] = '\0';
-        // when width isn't a multiple of 8, the row's last byte only has its high 'trailing_bits'
-        // bits within the glyph -- the rest is padding beyond the glyph's right edge
-        uint8_t full_bytes = bitmap.width / 8;
-        uint8_t trailing_bits = bitmap.width % 8;
-        uint8_t byte_count = full_bytes + (trailing_bits ? 1 : 0);
-        for(uint8_t i = 0; i < bitmap.rows; i++) {
-                // use pitch to ensure correct buffer alignment when width is not a multiple of 8
-                uint8_t *source_row = bitmap.buffer + i * abs(bitmap.pitch);
-                for(uint8_t j = 0; j < byte_count; j++) {
-                        uint8_t source_byte = source_row[j];
-                        bool last_byte = (j + 1 == byte_count);
-                        uint8_t bits = (last_byte && trailing_bits) ? trailing_bits : 8;
-                        if(bits == 0) continue;
-                        (source_byte & 0x80)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
-                        if(bits == 1) continue;
-                        (source_byte & 0x40)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
-                        if(bits == 2) continue;
-                        (source_byte & 0x20)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
-                        if(bits == 3) continue;
-                        (source_byte & 0x10)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
-                        if(bits == 4) continue;
-                        (source_byte & 0x08)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
-                        if(bits == 5) continue;
-                        (source_byte & 0x04)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
-                        if(bits == 6) continue;
-                        (source_byte & 0x02)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
-                        if(bits == 7) continue;
-                        (source_byte & 0x01)? strcat(output_buffer, "*") : strcat(output_buffer, " ");
+        memset(output_buffer, 0, output_length);
+        uint8_t copy_rows = (bitmap.rows < cell_height) ? bitmap.rows : cell_height;
+        uint8_t copy_cols = (bitmap.width < cell_width) ? bitmap.width : cell_width;
+        for(uint8_t y = 0; y < copy_rows; y++) {
+                for(uint8_t x = 0; x < copy_cols; x++) {
+                        if(_bitmap_get_pixel(bitmap.buffer, bitmap.pitch, x, y)) {
+                                _bitmap_set_pixel(output_buffer, dest_pitch, x, y);
+                        }
                 }
-                strcat(output_buffer, "\n");
         }
         return output_buffer;
+}
+// turns a name (e.g. a font's filename) into a valid, unique-enough C identifier fragment:
+// non-alphanumeric characters become '_', and a leading digit gets a '_' prefix
+static uint8_t *_sanitize_c_identifier(const uint8_t *name)
+{
+        size_t len = strlen(name);
+        uint8_t *out = light_alloc(len + 2);
+        size_t out_i = 0;
+        if(len > 0 && isdigit(name[0])) {
+                out[out_i++] = '_';
+        }
+        for(size_t i = 0; i < len; i++) {
+                out[out_i++] = isalnum(name[i]) ? name[i] : '_';
+        }
+        out[out_i] = '\0';
+        return out;
+}
+// RENDER_CHAR_SET is printable ASCII only, so a 128-entry table indexed directly by character
+// code covers every possible entry with room to spare
+#define FONT_GLYPH_TABLE_SIZE 128
+// writes the render job's glyph data as a single font.h/font.c pair under job->output_path,
+// suitable for embedding directly in firmware: font.c defines one packed-bitmap byte array per
+// rendered glyph plus a table of pointers indexed by ASCII code, and font.h declares the
+// font struct type and the extern instance that ties it all together
+static void worker__render_export_c_source(struct render_job *job)
+{
+        uint8_t *char_list = RENDER_CHAR_SET;
+        uint8_t num_glyphs = strlen(char_list);
+        uint8_t dest_pitch = (job->cell_width + 7) / 8;
+        uint16_t glyph_size = (uint16_t)dest_pitch * job->cell_height;
+
+        uint8_t *ident = _sanitize_c_identifier(job->font->name);
+        uint8_t *h_path = crush_path_join(job->output_path, "font.h");
+        uint8_t *c_path = crush_path_join(job->output_path, "font.c");
+        FILE *h = fopen(h_path, "wb");
+        FILE *c = fopen(c_path, "wb");
+        if(!h || !c) {
+                light_warn("job '%s': failed to open font.h/font.c for writing under '%s'", job->name, job->output_path);
+                if(h) fclose(h);
+                if(c) fclose(c);
+                light_free(h_path);
+                light_free(c_path);
+                light_free(ident);
+                return;
+        }
+
+        fprintf(h,
+                "#ifndef %s_FONT_H\n"
+                "#define %s_FONT_H\n"
+                "\n"
+                "#include <stdint.h>\n"
+                "\n"
+                "// glyphs[] is indexed directly by ASCII character code; unrendered code points\n"
+                "// are NULL. every non-NULL entry points to a (char_width+7)/8 * char_height byte\n"
+                "// buffer: 1 bit per pixel, MSB-first, row-major, 1 = black and 0 = white\n"
+                "#define %s_GLYPH_TABLE_SIZE %d\n"
+                "\n"
+                "struct %s_font {\n"
+                "        const uint8_t *const *glyphs;\n"
+                "        uint8_t char_width;\n"
+                "        uint8_t char_height;\n"
+                "};\n"
+                "\n"
+                "extern const struct %s_font %s_font;\n"
+                "\n"
+                "#endif\n",
+                ident, ident, ident, FONT_GLYPH_TABLE_SIZE, ident, ident, ident);
+
+        fprintf(c, "#include \"font.h\"\n\n");
+        for(uint8_t i = 0; i < num_glyphs; i++) {
+                if(!job->result[i]) continue;
+                fprintf(c, "static const uint8_t glyph_0x%02x[] = { // '%c'", char_list[i], char_list[i]);
+                for(uint16_t b = 0; b < glyph_size; b++) {
+                        fprintf(c, "%s0x%02x,", (b % 12 == 0) ? "\n        " : " ", job->result[i][b]);
+                }
+                fprintf(c, "\n};\n\n");
+        }
+        fprintf(c, "static const uint8_t *const glyph_table[%s_GLYPH_TABLE_SIZE] = {\n", ident);
+        for(uint8_t i = 0; i < num_glyphs; i++) {
+                if(!job->result[i]) continue;
+                fprintf(c, "        [0x%02x] = glyph_0x%02x,\n", char_list[i], char_list[i]);
+        }
+        fprintf(c, "};\n\n");
+        fprintf(c,
+                "const struct %s_font %s_font = {\n"
+                "        .glyphs = glyph_table,\n"
+                "        .char_width = %u,\n"
+                "        .char_height = %u,\n"
+                "};\n",
+                ident, ident, job->cell_width, job->cell_height);
+
+        fclose(h);
+        fclose(c);
+        light_free(h_path);
+        light_free(c_path);
+        light_free(ident);
 }

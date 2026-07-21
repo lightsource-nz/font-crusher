@@ -53,6 +53,11 @@ struct render_job {
         uint16_t prog_max;
         uint8_t res_pitch;
         uint8_t **result;
+        // fixed glyph cell size for this job, derived from the font's own metrics before any
+        // glyph is rendered (see worker__render_job_process()) -- every glyph in result[] is
+        // rasterized directly into this same size, rather than its own natural bitmap size
+        uint8_t cell_width;
+        uint8_t cell_height;
 };
 
 struct render_engine {
