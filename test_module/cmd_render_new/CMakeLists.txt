@@ -55,8 +55,8 @@ set_property(TEST cmd_render_new PROPERTY FAIL_REGULAR_EXPRESSION "\\[  ERROR\\]
 add_test(
         NAME cmd_render_new__check_output_file
         COMMAND ${CMAKE_COMMAND}
-                "-DHEADER_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/font.h"
-                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/font.c"
+                "-DHEADER_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_font.h"
+                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_font.c"
                 -P "${CMAKE_CURRENT_LIST_DIR}/check_glyph_output.cmake"
 )
 set_property(TEST cmd_render_new__check_output_file PROPERTY FIXTURES_REQUIRED cmd_render_new_ctx)
@@ -67,7 +67,7 @@ set_property(TEST cmd_render_new__check_output_file PROPERTY DEPENDS cmd_render_
 add_test(
         NAME cmd_render_new__check_case_distinct
         COMMAND ${CMAKE_COMMAND}
-                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/font.c"
+                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_font.c"
                 "-DGLYPH_A=0x61"
                 "-DGLYPH_B=0x41"
                 -P "${CMAKE_CURRENT_LIST_DIR}/check_glyphs_differ.cmake"

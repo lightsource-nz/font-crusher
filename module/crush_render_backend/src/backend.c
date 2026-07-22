@@ -482,13 +482,17 @@ static void _write_glyph_ascii_art(FILE *out, const uint8_t *buffer, uint8_t pit
                 fputc('\n', out);
         }
 }
-// RENDER_CHAR_SET is printable ASCII only, so a 128-entry table indexed directly by character
-// code covers every possible entry with room to spare
-#define FONT_GLYPH_TABLE_SIZE 128
-// writes the render job's glyph data as a single font.h/font.c pair under job->output_path,
-// suitable for embedding directly in firmware: font.c defines one packed-bitmap byte array per
-// rendered glyph plus a table of pointers indexed by ASCII code, and font.h declares the
-// font struct type and the extern instance that ties it all together
+// writes the render job's glyph data as a <ident>_font.h/<ident>_font.c pair under
+// job->output_path, suitable for embedding directly in firmware: the .c file defines one
+// packed-bitmap byte array per rendered glyph plus a table of pointers indexed by ASCII code,
+// and the .h file declares the extern rend_font_t instance that ties it all together.
+//
+// the exported type is rend's own rend_font_t (see <rend.h>), not a type generated per-font --
+// this is what lets a consumer draw text with any of several fonts rendered by separate jobs
+// through the same rend_draw_text() call, just by swapping which extern instance it points at.
+// file names and the extern instance name are both derived from the font's identifier so that
+// multiple fonts can be rendered into a shared output directory and compiled into one program
+// without colliding, either on disk or at link time
 static void worker__render_export_c_source(struct render_job *job)
 {
         uint8_t *char_list = RENDER_CHAR_SET;
@@ -497,14 +501,19 @@ static void worker__render_export_c_source(struct render_job *job)
         uint16_t glyph_size = (uint16_t)dest_pitch * job->cell_height;
 
         uint8_t *ident = _sanitize_c_identifier(job->font->name);
-        uint8_t *h_path = crush_path_join(job->output_path, "font.h");
-        uint8_t *c_path = crush_path_join(job->output_path, "font.c");
+        uint8_t *h_name = NULL, *c_name = NULL;
+        asprintf((char **)&h_name, "%s_font.h", ident);
+        asprintf((char **)&c_name, "%s_font.c", ident);
+        uint8_t *h_path = crush_path_join(job->output_path, h_name);
+        uint8_t *c_path = crush_path_join(job->output_path, c_name);
         FILE *h = fopen(h_path, "wb");
         FILE *c = fopen(c_path, "wb");
         if(!h || !c) {
-                light_warn("job '%s': failed to open font.h/font.c for writing under '%s'", job->name, job->output_path);
+                light_warn("job '%s': failed to open '%s'/'%s' for writing under '%s'", job->name, h_name, c_name, job->output_path);
                 if(h) fclose(h);
                 if(c) fclose(c);
+                light_free(h_name);
+                light_free(c_name);
                 light_free(h_path);
                 light_free(c_path);
                 light_free(ident);
@@ -515,25 +524,14 @@ static void worker__render_export_c_source(struct render_job *job)
                 "#ifndef %s_FONT_H\n"
                 "#define %s_FONT_H\n"
                 "\n"
-                "#include <stdint.h>\n"
+                "#include <rend.h>\n"
                 "\n"
-                "// glyphs[] is indexed directly by ASCII character code; unrendered code points\n"
-                "// are NULL. every non-NULL entry points to a (char_width+7)/8 * char_height byte\n"
-                "// buffer: 1 bit per pixel, MSB-first, row-major, 1 = black and 0 = white\n"
-                "#define %s_GLYPH_TABLE_SIZE %d\n"
-                "\n"
-                "struct %s_font {\n"
-                "        const uint8_t *const *glyphs;\n"
-                "        uint8_t char_width;\n"
-                "        uint8_t char_height;\n"
-                "};\n"
-                "\n"
-                "extern const struct %s_font %s_font;\n"
+                "extern const rend_font_t %s_font;\n"
                 "\n"
                 "#endif\n",
-                ident, ident, ident, FONT_GLYPH_TABLE_SIZE, ident, ident, ident);
+                ident, ident, ident);
 
-        fprintf(c, "#include \"font.h\"\n\n");
+        fprintf(c, "#include \"%s\"\n\n", h_name);
         for(uint8_t i = 0; i < num_glyphs; i++) {
                 if(!job->result[i]) continue;
                 fprintf(c, "// '%c' (0x%02x):\n", char_list[i], char_list[i]);
@@ -544,22 +542,24 @@ static void worker__render_export_c_source(struct render_job *job)
                 }
                 fprintf(c, "\n};\n\n");
         }
-        fprintf(c, "static const uint8_t *const glyph_table[%s_GLYPH_TABLE_SIZE] = {\n", ident);
+        fprintf(c, "static const uint8_t *const glyph_table[REND_FONT_GLYPH_TABLE_SIZE] = {\n");
         for(uint8_t i = 0; i < num_glyphs; i++) {
                 if(!job->result[i]) continue;
                 fprintf(c, "        [0x%02x] = glyph_0x%02x,\n", char_list[i], char_list[i]);
         }
         fprintf(c, "};\n\n");
         fprintf(c,
-                "const struct %s_font %s_font = {\n"
+                "const rend_font_t %s_font = {\n"
                 "        .glyphs = glyph_table,\n"
                 "        .char_width = %u,\n"
                 "        .char_height = %u,\n"
                 "};\n",
-                ident, ident, job->cell_width, job->cell_height);
+                ident, job->cell_width, job->cell_height);
 
         fclose(h);
         fclose(c);
+        light_free(h_name);
+        light_free(c_name);
         light_free(h_path);
         light_free(c_path);
         light_free(ident);
