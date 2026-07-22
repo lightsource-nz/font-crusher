@@ -458,6 +458,30 @@ static uint8_t *_sanitize_c_identifier(const uint8_t *name)
         out[out_i] = '\0';
         return out;
 }
+// writes an ASCII-art preview of a packed glyph bitmap as a block of '//' comment lines
+// ('*' = black/set pixel, ' ' = white/clear pixel), one line per row. trailing rows that are
+// entirely blank are omitted -- they're just fixed-cell padding below the glyph's actual ink
+// (see worker__render_job_copy_bitmap()), not part of the character, and printing them only
+// adds visual noise
+static void _write_glyph_ascii_art(FILE *out, const uint8_t *buffer, uint8_t pitch, uint8_t width, uint8_t height)
+{
+        uint8_t print_rows = 0;
+        for(uint8_t y = 0; y < height; y++) {
+                for(uint8_t x = 0; x < width; x++) {
+                        if(_bitmap_get_pixel(buffer, pitch, x, y)) {
+                                print_rows = y + 1;
+                                break;
+                        }
+                }
+        }
+        for(uint8_t y = 0; y < print_rows; y++) {
+                fputs("// ", out);
+                for(uint8_t x = 0; x < width; x++) {
+                        fputc(_bitmap_get_pixel(buffer, pitch, x, y) ? '*' : ' ', out);
+                }
+                fputc('\n', out);
+        }
+}
 // RENDER_CHAR_SET is printable ASCII only, so a 128-entry table indexed directly by character
 // code covers every possible entry with room to spare
 #define FONT_GLYPH_TABLE_SIZE 128
@@ -512,7 +536,9 @@ static void worker__render_export_c_source(struct render_job *job)
         fprintf(c, "#include \"font.h\"\n\n");
         for(uint8_t i = 0; i < num_glyphs; i++) {
                 if(!job->result[i]) continue;
-                fprintf(c, "static const uint8_t glyph_0x%02x[] = { // '%c'", char_list[i], char_list[i]);
+                fprintf(c, "// '%c' (0x%02x):\n", char_list[i], char_list[i]);
+                _write_glyph_ascii_art(c, job->result[i], dest_pitch, job->cell_width, job->cell_height);
+                fprintf(c, "static const uint8_t glyph_0x%02x[] = {", char_list[i]);
                 for(uint16_t b = 0; b < glyph_size; b++) {
                         fprintf(c, "%s0x%02x,", (b % 12 == 0) ? "\n        " : " ", job->result[i][b]);
                 }
