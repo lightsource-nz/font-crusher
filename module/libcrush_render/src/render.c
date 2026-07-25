@@ -230,6 +230,7 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
                         "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
                         "s:s,"          //      "font":                 "sans_helvetica"
                         "s:i,"          //      "font_size"             "14"
+                        "s:i,"          //      "pixel_size"            "19"
                         "s:s,"          //      "display":              "$disp"
                         "s:s,"          //      "path":                 "$context/data/render/$id"
                 "}",
@@ -237,6 +238,7 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
                 "state",        object->state,
                 "font",         font_str,
                 "font_size",    object->font_size,
+                "pixel_size",   object->pixel_size,
                 "display",      display_str,
                 "path",         object->path
                 );
@@ -245,12 +247,13 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
 void crush_render_object_extract(crush_json_t *data, struct crush_render *object)
 {
         uint8_t *font_str, *display_str;
-        json_unpack(data, 
+        json_unpack(data,
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
                         "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
                         "s:s,"          //      "font":                 "sans_helvetica"
                         "s:i,"          //      "font_size"             "14"
+                        "s:i,"          //      "pixel_size"            "19"
                         "s:s,"          //      "display":              "$disp"
                         "s:s,"          //      "path":                 "$context/data/render/$id"
                 "}",
@@ -258,6 +261,7 @@ void crush_render_object_extract(crush_json_t *data, struct crush_render *object
                 "state",        &object->state,
                 "font",         &font_str,
                 "font_size",    &object->font_size,
+                "pixel_size",   &object->pixel_size,
                 "display",      &display_str,
                 "path",         &object->path
         );
@@ -287,7 +291,7 @@ uint8_t *crush_render_context_get_root_path(struct crush_render_context *context
 {
         crush_path_join(crush_context_get_context_root_path(context->root), CRUSH_RENDER_CONTEXT_SUBDIR_NAME);
 }
-void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display)
+void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *display)
 {
         render->context = context;
 
@@ -296,6 +300,7 @@ void crush_render_init_ctx(struct crush_render_context *context, struct crush_re
         render->state = CRUSH_RENDER_STATE_NEW;
         render->font = font;
         render->font_size = font_size;
+        render->pixel_size = pixel_size;
         render->display = display;
         uint8_t *time_str = crush_common_datetime_string();
         char **name_char = (char **) &render->name;
@@ -304,9 +309,9 @@ void crush_render_init_ctx(struct crush_render_context *context, struct crush_re
         light_free(time_str);
         render->path = crush_path_join(crush_render_context_get_root_path(context), name);
 }
-void crush_render_init(struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display)
+void crush_render_init(struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *display)
 {
-        crush_render_init_ctx(crush_render_context(), render, name, font, font_size, display);
+        crush_render_init_ctx(crush_render_context(), render, name, font, font_size, pixel_size, display);
 }
 void crush_render_release(struct crush_render *render)
 {
@@ -351,6 +356,14 @@ void crush_render_set_font_size(struct crush_render *render, uint8_t font_size)
 {
         render->font_size = font_size;
 }
+uint8_t crush_render_get_pixel_size(struct crush_render *render)
+{
+        return render->pixel_size;
+}
+void crush_render_set_pixel_size(struct crush_render *render, uint8_t pixel_size)
+{
+        render->pixel_size = pixel_size;
+}
 // -> default behaviour for state changing actions is to bail out if the
 // action collides with another state change
 uint8_t crush_render_create_render_job(struct crush_render *render)
@@ -367,7 +380,7 @@ uint8_t crush_render_create_render_job(struct crush_render *render)
                 light_error("failed to queue render item '%s': state changed unexpectedly", render->state);
                 return LIGHT_STATE_INVALID;
         }
-        struct render_job *job = render_engine_create_render_job(render_engine_default(), render->name, render->font, render->font_size, render->display, callback__render_job_done, render, render->path);
+        struct render_job *job = render_engine_create_render_job(render_engine_default(), render->name, render->font, render->font_size, render->pixel_size, render->display, callback__render_job_done, render, render->path);
         if(!job) {
                 ID_To_String(id_str, render->id);
                 light_debug("failed to queue render job '%s', object ID 0x%s", render->name, id_str);
@@ -450,6 +463,10 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
 {
         const uint8_t *name = light_cli_invocation_get_arg_value(invoke, 0);
         uint8_t font_size = atoi(light_cli_invocation_get_arg_value(invoke, 1));
+        // optional: an explicit pixel size overrides font_size/display-PPI-based sizing entirely
+        // (see worker__render_job_process()); 0 if not given, meaning "not requested"
+        const uint8_t *str_pixel_size = light_cli_invocation_get_arg_value(invoke, 2);
+        uint8_t pixel_size = str_pixel_size ? atoi(str_pixel_size) : 0;
         const uint8_t *str_font = light_cli_invocation_get_option_value(invoke, OPTION_RENDER_NEW_FONT_NAME);
         if(!str_font) {
                 str_font = light_platform_getenv(CRUSH_EV_FONT);
@@ -481,7 +498,7 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         struct crush_render_context *context = crush_render_context();
         light_info("creating new render job '%s-%s", font->name, display->name);
         struct crush_render *new_render = light_alloc(sizeof(struct crush_render));
-        crush_render_init(new_render, name, font, font_size, display);
+        crush_render_init(new_render, name, font, font_size, pixel_size, display);
 
         crush_render_context_save(context, new_render);
         // this command performs the actual file write which saves our new object to disk
@@ -533,14 +550,17 @@ static void print_usage_render()
         printf(
                 "Usage:\n"
                 "crush render list \n"
-                "crush render new <render_id> -f <font_id> -d <display_id> \n"
+                "crush render new <render_id> <font_size_pt> [pixel_size] -f <font_id> -d <display_id> \n"
         );
 }
 static void print_usage_render_new()
 {
         printf(
                 "Usage:\n"
-                "crush render new <render_id> -f <font_id> -d <display_id> \n"
+                "crush render new <render_id> <font_size_pt> [pixel_size] -f <font_id> -d <display_id> \n"
+                "  font_size_pt: font size in points, scaled by the display's PPI\n"
+                "  pixel_size:   optional; if given, overrides font_size_pt/PPI-based\n"
+                "                scaling with this exact pixel size\n"
         );
 }
 static void print_usage_render_info()

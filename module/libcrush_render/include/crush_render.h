@@ -41,6 +41,7 @@ struct crush_render {
         uint8_t state;
         struct crush_font *font;
         uint8_t font_size;
+        uint8_t pixel_size;
         struct crush_display *display;
         uint8_t *path;
         uint8_t **output;
@@ -86,8 +87,8 @@ extern void crush_render_module_load();
 extern void crush_render_module_unload();
 
 extern uint8_t *crush_render_context_get_root_path(struct crush_render_context *context);
-extern void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display);
-extern void crush_render_init(struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *display);
+extern void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *display);
+extern void crush_render_init(struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *display);
 extern void crush_render_release(struct crush_render *render);
 extern uint32_t crush_render_get_id(struct crush_render *render);
 extern uint8_t crush_render_get_state(struct crush_render *render);
@@ -96,6 +97,8 @@ extern struct crush_font *crush_render_get_font(struct crush_render *render);
 extern void crush_render_set_font(struct crush_render *render, struct crush_font *font);
 extern uint8_t crush_render_get_font_size(struct crush_render *render);
 extern void crush_render_set_font_size(struct crush_render *render, uint8_t font_size);
+extern uint8_t crush_render_get_pixel_size(struct crush_render *render);
+extern void crush_render_set_pixel_size(struct crush_render *render, uint8_t pixel_size);
 extern struct crush_display *crush_render_get_display(struct crush_render *render);
 extern void crush_render_set_display(struct crush_render *render, struct crush_display *display);
 

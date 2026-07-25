@@ -36,9 +36,12 @@ set_property(TEST cmd_render_new__add_display PROPERTY FIXTURES_SETUP cmd_render
 set_property(TEST cmd_render_new__add_display PROPERTY DEPENDS cmd_render_new__reset_context)
 set_property(TEST cmd_render_new__add_display PROPERTY ENV CRUSH_CONTEXT=)
 
+# 19 is the pixel size (y_ppem) that FreeType itself resolves 14pt @ the display's default 96 PPI
+# to -- i.e. this test now exercises the pixel_size argument with the exact value the pipeline
+# would already be using for this font/size/display combination if pixel_size were left unset
 add_test(
         NAME cmd_render_new
-        COMMAND $<TARGET_FILE:crush> render new test_render 14 --font TypeLightSans.ttf --display test-display
+        COMMAND $<TARGET_FILE:crush> render new test_render 14 19 --font TypeLightSans.ttf --display test-display
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_property(TEST cmd_render_new PROPERTY FIXTURES_REQUIRED cmd_render_new_ctx)
@@ -55,8 +58,8 @@ set_property(TEST cmd_render_new PROPERTY FAIL_REGULAR_EXPRESSION "\\[  ERROR\\]
 add_test(
         NAME cmd_render_new__check_output_file
         COMMAND ${CMAKE_COMMAND}
-                "-DHEADER_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_font.h"
-                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_font.c"
+                "-DHEADER_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_19px_font.h"
+                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_19px_font.c"
                 -P "${CMAKE_CURRENT_LIST_DIR}/check_glyph_output.cmake"
 )
 set_property(TEST cmd_render_new__check_output_file PROPERTY FIXTURES_REQUIRED cmd_render_new_ctx)
@@ -67,7 +70,7 @@ set_property(TEST cmd_render_new__check_output_file PROPERTY DEPENDS cmd_render_
 add_test(
         NAME cmd_render_new__check_case_distinct
         COMMAND ${CMAKE_COMMAND}
-                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_font.c"
+                "-DSOURCE_FILE=${CMAKE_CURRENT_BINARY_DIR}/.crush/render/test_render/TypeLightSans_ttf_19px_font.c"
                 "-DGLYPH_A=0x61"
                 "-DGLYPH_B=0x41"
                 -P "${CMAKE_CURRENT_LIST_DIR}/check_glyphs_differ.cmake"

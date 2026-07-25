@@ -45,6 +45,11 @@ struct render_job {
         const uint8_t *name;
         struct crush_font *font;
         uint8_t font_size;
+        // explicit pixel-size override (0 = not requested, derive size from font_size + the
+        // display's PPI instead). worker__render_job_process() overwrites this field with the
+        // actual pixel size FreeType ends up using, once known, for worker__render_export_c_source()
+        // to name its output with -- FreeType doesn't guarantee an exact match to either input
+        uint8_t pixel_size;
         struct crush_display *display;
         void *cb_arg;
         void (*callback)(struct render_job *, void *);
@@ -58,6 +63,10 @@ struct render_job {
         // rasterized directly into this same size, rather than its own natural bitmap size
         uint8_t cell_width;
         uint8_t cell_height;
+        // row (from the top of the cell) where the shared baseline sits, from the font's own
+        // ascender metric -- lets worker__render_job_copy_bitmap() place each glyph using its
+        // real bearings instead of assuming every bitmap starts at the cell's top-left corner
+        uint8_t cell_ascent;
 };
 
 struct render_engine {
@@ -90,7 +99,7 @@ extern void render_engine_engine_wait_for_online(struct render_engine *engine);
 extern struct render_job *render_engine_get_active_job(struct render_engine *engine);
 extern uint8_t render_engine_get_job_count(struct render_engine *engine);
 extern struct render_job *render_engine_get_job(struct render_engine *engine, uint8_t id);
-extern struct render_job *render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), void *cb_arg, uint8_t *output_path);
+extern struct render_job *render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), void *cb_arg, uint8_t *output_path);
 // this will block the calling thread until a job becomes available
 extern struct render_job *render_engine_collect_render_job(struct render_engine *engine);
 // this variant is nonblocking, and returns null if no jobs are waiting

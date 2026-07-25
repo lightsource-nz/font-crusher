@@ -23,7 +23,7 @@ static struct render_engine engine_default;
 static int worker__render_work_thread_main(void *arg);
 static void worker__render_job_process(struct render_engine *engine, struct render_job *job);
 static void worker__render_job_complete(struct render_engine *engine, struct render_job *job);
-static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap, uint8_t cell_width, uint8_t cell_height);
+static uint8_t *worker__render_job_copy_bitmap(FT_GlyphSlot glyph, uint8_t cell_width, uint8_t cell_height, uint8_t cell_ascent);
 static void worker__render_export_c_source(struct render_job *job);
 
 void render_backend_init()
@@ -136,7 +136,7 @@ static void _mkdir_recursive(const uint8_t *path)
         }
         mkdir(buf, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 }
-struct render_job *render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), void *cb_arg, uint8_t *output_path)
+struct render_job *render_engine_create_render_job(struct render_engine *engine, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *target_display, void (*callback)(struct render_job *, void *), void *cb_arg, uint8_t *output_path)
 {
         atomic_bool closed = atomic_load(&engine->flag_closed);
         if(closed) {
@@ -154,6 +154,7 @@ struct render_job *render_engine_create_render_job(struct render_engine *engine,
         job->name = name;
         job->font = font,
         job->font_size = font_size;
+        job->pixel_size = pixel_size;
         job->display = target_display;
         job->output_path = output_path;
         job->progress = 0;
@@ -368,14 +369,24 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 job->callback(job, job->cb_arg);
                 return;
         }
-        // FT_Set_Char_Size() takes sizes in 26.6 fixed-point (1/64th of a point), not whole points
-        err = FT_Set_Char_Size(face, 0, job->font_size * 64, job->display->ppi_h, job->display->ppi_v);
+        if(job->pixel_size) {
+                // explicit pixel size requested: bypasses font_size/PPI entirely
+                err = FT_Set_Pixel_Sizes(face, 0, job->pixel_size);
+        } else {
+                // FT_Set_Char_Size() takes sizes in 26.6 fixed-point (1/64th of a point), not whole points
+                err = FT_Set_Char_Size(face, 0, job->font_size * 64, job->display->ppi_h, job->display->ppi_v);
+        }
+        // resolve the pixel size FreeType actually used, regardless of which call above set it --
+        // it doesn't guarantee an exact match to either input (see FT_Set_Pixel_Sizes' docs) -- for
+        // worker__render_export_c_source() to name this job's output uniquely by the real size
+        job->pixel_size = face->size->metrics.y_ppem;
         // the glyph cell size is a fixed input to the rest of this pipeline, derived once from
         // the font's own nominal metrics -- NOT computed by scanning actual rendered glyphs --
         // so every glyph below is rasterized directly into this same size (26.6 fixed-point,
         // hence the >> 6)
         job->cell_width = face->size->metrics.max_advance >> 6;
         job->cell_height = face->size->metrics.height >> 6;
+        job->cell_ascent = face->size->metrics.ascender >> 6;
         job->res_pitch = (job->cell_width + 7) / 8;
         uint8_t *char_list = RENDER_CHAR_SET;
         uint8_t num_glyphs = strlen(char_list);
@@ -399,7 +410,7 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                         job->callback(job, job->cb_arg);
                         return;
                 }
-                job->result[i] = worker__render_job_copy_bitmap(face->glyph->bitmap, job->cell_width, job->cell_height);
+                job->result[i] = worker__render_job_copy_bitmap(face->glyph, job->cell_width, job->cell_height, job->cell_ascent);
         }
         FT_Done_Face(face);
         worker__render_export_c_source(job);
@@ -420,23 +431,33 @@ static void _bitmap_set_pixel(uint8_t *buffer, uint8_t pitch, uint8_t x, uint8_t
 {
         buffer[y * pitch + x / 8] |= (1 << (7 - (x % 8)));
 }
-// copies 'bitmap' into a freshly-allocated, zeroed buffer of exactly (cell_width+7)/8 *
-// cell_height bytes (1 bit per pixel, MSB-first, row-major), anchored at the top-left corner.
-// 'bitmap' is clipped if it's larger than the target cell in either dimension -- every glyph
-// must come out the same size, since cell_width/cell_height are a fixed pipeline input (see
-// worker__render_job_process()), not something derived per-glyph
-static uint8_t *worker__render_job_copy_bitmap(FT_Bitmap bitmap, uint8_t cell_width, uint8_t cell_height)
+// copies 'glyph's rendered bitmap into a freshly-allocated, zeroed buffer of exactly
+// (cell_width+7)/8 * cell_height bytes (1 bit per pixel, MSB-first, row-major). the bitmap is
+// positioned using FreeType's own bearings (bitmap_left/bitmap_top) relative to cell_ascent,
+// the row where the shared baseline sits -- NOT anchored at the cell's top-left corner. a
+// glyph's bitmap can be considerably larger than the cell and offset well outside it (e.g. a
+// large negative bitmap_left) while its actual ink still lands inside the cell once bearings
+// are applied, so pixels are clipped individually rather than rejecting the whole bitmap when
+// its nominal bounds exceed the cell
+static uint8_t *worker__render_job_copy_bitmap(FT_GlyphSlot glyph, uint8_t cell_width, uint8_t cell_height, uint8_t cell_ascent)
 {
+        FT_Bitmap bitmap = glyph->bitmap;
         uint8_t dest_pitch = (cell_width + 7) / 8;
         uint16_t output_length = (uint16_t)dest_pitch * cell_height;
         uint8_t *output_buffer = light_alloc(output_length);
         memset(output_buffer, 0, output_length);
-        uint8_t copy_rows = (bitmap.rows < cell_height) ? bitmap.rows : cell_height;
-        uint8_t copy_cols = (bitmap.width < cell_width) ? bitmap.width : cell_width;
-        for(uint8_t y = 0; y < copy_rows; y++) {
-                for(uint8_t x = 0; x < copy_cols; x++) {
+        int32_t origin_x = glyph->bitmap_left;
+        int32_t origin_y = (int32_t)cell_ascent - glyph->bitmap_top;
+        for(uint16_t y = 0; y < bitmap.rows; y++) {
+                int32_t dest_y = origin_y + y;
+                if(dest_y < 0 || dest_y >= cell_height)
+                        continue;
+                for(uint16_t x = 0; x < bitmap.width; x++) {
+                        int32_t dest_x = origin_x + x;
+                        if(dest_x < 0 || dest_x >= cell_width)
+                                continue;
                         if(_bitmap_get_pixel(bitmap.buffer, bitmap.pitch, x, y)) {
-                                _bitmap_set_pixel(output_buffer, dest_pitch, x, y);
+                                _bitmap_set_pixel(output_buffer, dest_pitch, dest_x, dest_y);
                         }
                 }
         }
@@ -459,22 +480,23 @@ static uint8_t *_sanitize_c_identifier(const uint8_t *name)
         return out;
 }
 // writes an ASCII-art preview of a packed glyph bitmap as a block of '//' comment lines
-// ('*' = black/set pixel, ' ' = white/clear pixel), one line per row. trailing rows that are
-// entirely blank are omitted -- they're just fixed-cell padding below the glyph's actual ink
-// (see worker__render_job_copy_bitmap()), not part of the character, and printing them only
-// adds visual noise
+// ('*' = black/set pixel, ' ' = white/clear pixel), one line per row. leading and trailing rows
+// that are entirely blank are omitted -- they're just fixed-cell padding around the glyph's
+// actual ink (see worker__render_job_copy_bitmap()), not part of the character, and printing
+// them only adds visual noise
 static void _write_glyph_ascii_art(FILE *out, const uint8_t *buffer, uint8_t pitch, uint8_t width, uint8_t height)
 {
-        uint8_t print_rows = 0;
+        uint8_t first_row = height, last_row = 0;
         for(uint8_t y = 0; y < height; y++) {
                 for(uint8_t x = 0; x < width; x++) {
                         if(_bitmap_get_pixel(buffer, pitch, x, y)) {
-                                print_rows = y + 1;
+                                if(y < first_row) first_row = y;
+                                last_row = y;
                                 break;
                         }
                 }
         }
-        for(uint8_t y = 0; y < print_rows; y++) {
+        for(uint8_t y = first_row; y <= last_row && y < height; y++) {
                 fputs("// ", out);
                 for(uint8_t x = 0; x < width; x++) {
                         fputc(_bitmap_get_pixel(buffer, pitch, x, y) ? '*' : ' ', out);
@@ -490,9 +512,11 @@ static void _write_glyph_ascii_art(FILE *out, const uint8_t *buffer, uint8_t pit
 // the exported type is rend's own rend_font_t (see <rend.h>), not a type generated per-font --
 // this is what lets a consumer draw text with any of several fonts rendered by separate jobs
 // through the same rend_draw_text() call, just by swapping which extern instance it points at.
-// file names and the extern instance name are both derived from the font's identifier so that
-// multiple fonts can be rendered into a shared output directory and compiled into one program
-// without colliding, either on disk or at link time
+// file names and the extern instance name are both derived from the font's identifier and its
+// resolved pixel size (job->pixel_size, set by worker__render_job_process()) so that multiple
+// renders of the same font at different sizes -- as well as different fonts -- can share one
+// output directory and be compiled into one program without colliding, either on disk or at
+// link time
 static void worker__render_export_c_source(struct render_job *job)
 {
         uint8_t *char_list = RENDER_CHAR_SET;
@@ -500,7 +524,10 @@ static void worker__render_export_c_source(struct render_job *job)
         uint8_t dest_pitch = (job->cell_width + 7) / 8;
         uint16_t glyph_size = (uint16_t)dest_pitch * job->cell_height;
 
-        uint8_t *ident = _sanitize_c_identifier(job->font->name);
+        uint8_t *base_ident = _sanitize_c_identifier(job->font->name);
+        uint8_t *ident = NULL;
+        asprintf((char **)&ident, "%s_%upx", base_ident, job->pixel_size);
+        light_free(base_ident);
         uint8_t *h_name = NULL, *c_name = NULL;
         asprintf((char **)&h_name, "%s_font.h", ident);
         asprintf((char **)&c_name, "%s_font.c", ident);
