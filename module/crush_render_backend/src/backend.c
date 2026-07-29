@@ -370,8 +370,14 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
                 return;
         }
         if(job->pixel_size) {
-                // explicit pixel size requested: bypasses font_size/PPI entirely
-                err = FT_Set_Pixel_Sizes(face, 0, job->pixel_size);
+                // explicit pixel size requested: bypasses font_size/points entirely, but the
+                // display's pixel aspect ratio still applies -- job->pixel_size is treated as
+                // the vertical (y) size, and the horizontal (x) size is derived from it via
+                // ppi_h/ppi_v so glyphs come out the right shape on displays with non-square
+                // pixels, instead of FT_Set_Pixel_Sizes()'s width=0 shorthand, which always
+                // assumes square pixels
+                uint16_t pixel_width = (uint16_t)(job->pixel_size * (job->display->ppi_h / job->display->ppi_v) + 0.5);
+                err = FT_Set_Pixel_Sizes(face, pixel_width, job->pixel_size);
         } else {
                 // FT_Set_Char_Size() takes sizes in 26.6 fixed-point (1/64th of a point), not whole points
                 err = FT_Set_Char_Size(face, 0, job->font_size * 64, job->display->ppi_h, job->display->ppi_v);
