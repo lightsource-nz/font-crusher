@@ -1,0 +1,10 @@
+{
+        "version": 0,
+        "type": "crush:context",
+        "contextObjects": {
+                "crush:display": "display.json",
+                "crush:font": "font.json",
+                "crush:module": "module.json",
+                "crush:render": "render.json"
+        }
+}
