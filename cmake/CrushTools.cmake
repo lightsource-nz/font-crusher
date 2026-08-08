@@ -16,7 +16,13 @@
 #
 cmake_minimum_required(VERSION 3.17)
 
-set(CRUSH_TOOLS_CONTEXT_TEMPLATE_DIR "${CMAKE_CURRENT_LIST_DIR}/context_template")
+# cached, not a plain set(): CMake functions are global once defined, so crush_add_font_target()
+# is callable from any directory in the consuming project -- but a plain variable is scoped to
+# the directory that ran the include() and its children. a caller in a sibling directory (e.g. a
+# module elsewhere in the tree from the one that pulled rend in) would find this empty and emit a
+# `cmake -E copy_directory` with no source argument, failing with cmake's bare usage message
+set(CRUSH_TOOLS_CONTEXT_TEMPLATE_DIR "${CMAKE_CURRENT_LIST_DIR}/context_template"
+        CACHE INTERNAL "path to the crush context template bundled with font-crusher")
 
 # crush_invoke(OUTPUT <file> [<file> ...] COMMAND <arg> [<arg> ...]
 #              [WORKING_DIRECTORY <dir>] [DEPENDS <file> ...] [COMMENT <text>])
