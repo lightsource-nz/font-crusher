@@ -67,7 +67,9 @@ uint8_t render_engine_init_launch(struct render_engine *engine, const uint8_t *n
 {
         render_engine_init(engine, name, true);
         light_mutex_do_lock(&engine->lock);
-        if(render_engine_get_engine_state(engine) != ENGINE_ONLINE) {
+        // while, not if: cnd_wait can wake spuriously, and re-testing is what makes this
+        // correct rather than merely usually-correct
+        while(render_engine_get_engine_state(engine) != ENGINE_ONLINE) {
                 light_condition_wait(&engine->cond_online, &engine->lock);
         }
         light_mutex_do_unlock(&engine->lock);
@@ -86,14 +88,25 @@ uint8_t render_engine_engine_is_online(struct render_engine *engine)
 }
 void render_engine_engine_wait_for_online(struct render_engine *engine)
 {
-        if(engine->engine_state != ENGINE_INIT)
-                return;
-
-        light_mutex_t mutex;
-        light_mutex_init_recursive(&mutex);
-        light_mutex_do_lock(&mutex);
-        cnd_wait(&engine->cond_online, &mutex);
-        light_mutex_do_unlock(&mutex);
+        // this used to test engine_state, then wait on cond_online using a mutex declared
+        // right here on the stack. two things were wrong with that, and together they hung
+        // startup outright:
+        //
+        // a condition variable has to be waited on with the SAME mutex that guards its
+        // predicate and that the signaller holds -- a private one provides no mutual
+        // exclusion with anybody, which is undefined behaviour in C11 and POSIX alike. and
+        // testing the state before waiting, with nothing held across both, leaves the
+        // window this exists to close: the worker can go ONLINE and broadcast in between,
+        // finding no waiter, and the broadcast is simply lost.
+        //
+        // taking engine->lock across the test and the wait is what makes the pair atomic;
+        // the worker now publishes ENGINE_ONLINE under the same lock (see
+        // worker__render_work_thread_main)
+        light_mutex_do_lock(&engine->lock);
+        while(render_engine_get_engine_state(engine) == ENGINE_INIT) {
+                light_condition_wait(&engine->cond_online, &engine->lock);
+        }
+        light_mutex_do_unlock(&engine->lock);
 }
 struct render_job *render_engine_get_active_job(struct render_engine *engine)
 {
@@ -305,9 +318,15 @@ static int worker__render_work_thread_main(void *arg)
 
         crush_queue_init(&this_engine->work_queue);
         crush_queue_init(&this_engine->result_queue);
+        // published under engine->lock, which is the mutex the waiters hold across their
+        // predicate test. outside it, the state change and broadcast can both land between
+        // a waiter's test and its wait, and the wakeup is lost -- the engine comes online
+        // but whoever asked to be told never hears about it
+        light_mutex_do_lock(&this_engine->lock);
         atomic_store(&this_engine->engine_state, ENGINE_ONLINE);
         atomic_thread_fence(memory_order_release);
         cnd_broadcast(&this_engine->cond_online);
+        light_mutex_do_unlock(&this_engine->lock);
         while(1) {
                 atomic_store(&this_engine->engine_state_private, STATE_READ);
                 atomic_signal_fence(memory_order_release);
