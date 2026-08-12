@@ -25,7 +25,12 @@ static void print_usage();
 int main(int argc, char *argv[])
 {
         light_framework_init();
-        light_framework_run(argc, argv);
+        // crush is invoked from build systems, which decide whether a step succeeded from the
+        // exit code and nothing else. this used to fall off the end of main() and so always
+        // reported success -- a failed `crush font add` or a failed render left the build
+        // green and quietly reusing whatever stale generated sources were already on disk
+        uint8_t status = light_framework_run(argc, argv);
+        return status == LF_STATUS_ERROR ? 1 : 0;
 }
 static void crush_app_event(const struct light_module *mod, uint8_t event_id, void *arg)
 {

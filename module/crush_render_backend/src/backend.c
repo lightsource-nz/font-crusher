@@ -102,8 +102,19 @@ void render_engine_engine_wait_for_online(struct render_engine *engine)
         // taking engine->lock across the test and the wait is what makes the pair atomic;
         // the worker now publishes ENGINE_ONLINE under the same lock (see
         // worker__render_work_thread_main)
+        // waits for the state we WANT rather than for one we are leaving. testing
+        // `== ENGINE_INIT` meant any unexpected state fell straight through, which is exactly
+        // what happened when ENGINE_INIT was -1 and the atomic_uchar held 255: the loop never
+        // ran, this returned before the worker had called crush_queue_init(), and the caller
+        // went on to put a job into a queue whose mutex did not exist yet -- garbage is_open
+        // if it was lucky, an access violation if it was not
+        // ENGINE_ERROR ends the wait as well as ENGINE_ONLINE: the worker can fail before it
+        // ever comes online (freetype failing to initialise), and waiting for a state it will
+        // now never reach would turn a startup failure into a hang
         light_mutex_do_lock(&engine->lock);
-        while(render_engine_get_engine_state(engine) == ENGINE_INIT) {
+        uint8_t state;
+        while((state = render_engine_get_engine_state(engine)) != ENGINE_ONLINE
+                        && state != ENGINE_ERROR) {
                 light_condition_wait(&engine->cond_online, &engine->lock);
         }
         light_mutex_do_unlock(&engine->lock);
@@ -310,6 +321,13 @@ static int worker__render_work_thread_main(void *arg)
         int err;
         if(err = FT_Init_FreeType(&this_engine->freetype)) {
                 light_error("failed to initialise the freetype2 typesetting library: FT_Init_FreeType() returned value %d", err);
+                // published like the ONLINE transition below, under the lock and with a
+                // broadcast: anyone in render_engine_engine_wait_for_online() is waiting for a
+                // state this thread is never going to reach, and would otherwise wait forever
+                light_mutex_do_lock(&this_engine->lock);
+                atomic_store(&this_engine->engine_state, ENGINE_ERROR);
+                cnd_broadcast(&this_engine->cond_online);
+                light_mutex_do_unlock(&this_engine->lock);
                 return LIGHT_EXTERNAL;
         }
         int major, minor, patch;

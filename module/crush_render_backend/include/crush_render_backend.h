@@ -16,11 +16,21 @@
 #include <ft2build.h>
 #include <freetype/freetype.h>
 
-#define ENGINE_INIT             -1
-#define ENGINE_ONLINE           0
-#define ENGINE_SUSPEND          1
-#define ENGINE_HALT             2
-#define ENGINE_ERROR            3
+// engine state codes. these are stored in an atomic_uchar and read back through a uint8_t
+// accessor, so they MUST be representable in an unsigned char -- ENGINE_INIT was -1, which
+// stored as 255 and could then never compare equal to ENGINE_INIT again. That silently broke
+// render_engine_engine_wait_for_online(), whose loop tested `== ENGINE_INIT` and so exited
+// immediately, letting callers submit render jobs against a work queue whose mutex the worker
+// thread had not initialised yet.
+//
+// ENGINE_NONE is 0 on purpose: a render_engine with static storage duration starts zeroed, and
+// with ONLINE at 0 an engine that had never been touched reported itself as online
+#define ENGINE_NONE             0
+#define ENGINE_INIT             1
+#define ENGINE_ONLINE           2
+#define ENGINE_SUSPEND          3
+#define ENGINE_HALT             4
+#define ENGINE_ERROR            5
 
 // job state codes
 #define JOB_READY               0       // <- the state of new jobs in the queue
