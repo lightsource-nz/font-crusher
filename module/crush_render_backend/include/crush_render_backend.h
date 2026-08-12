@@ -96,9 +96,9 @@ struct render_engine {
         struct crush_queue result_queue;
 };
 
-extern void render_backend_init();
-extern void render_backend_shutdown();
-extern struct render_engine *render_engine_default();
+extern void render_backend_init(void);
+extern void render_backend_shutdown(void);
+extern struct render_engine *render_engine_default(void);
 
 extern uint8_t render_engine_init(struct render_engine *engine, const uint8_t *name, bool launch);
 extern uint8_t render_engine_init_launch(struct render_engine *engine, const uint8_t *name);

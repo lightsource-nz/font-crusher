@@ -99,16 +99,19 @@ int asprintf(char **strp, const char *fmt, ...);
 #endif
 
 // called automatically by light framework at module load-time
-extern void crush_common_init();
+extern void crush_common_init(void);
 // called automatically by light framework after all modules are loaded
-extern void crush_common_load_context();
+extern void crush_common_load_context(void);
 
-extern void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *));
-extern uint32_t crush_common_get_initial_counter_value();
+// (void), not (): under C23 an empty parameter list means "takes no arguments" rather than
+// "unspecified", so the two spellings are no longer interchangeable. this one is called as
+// create() by crush_common_create_context(), so (void) is what it has always actually been
+extern void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(void), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *));
+extern uint32_t crush_common_get_initial_counter_value(void);
 extern uint32_t crush_common_get_next_counter_value(uint32_t value);
-extern uint8_t *crush_common_datetime_string();
+extern uint8_t *crush_common_datetime_string(void);
 // crush application context API
-extern struct crush_context *crush_context();
+extern struct crush_context *crush_context(void);
 extern bool crush_context_try_load_from_path(uint8_t *path, struct crush_context *context);
 extern void crush_context_create_under_path(uint8_t *path, struct crush_context *context);
 extern void crush_context_add_context_object(struct crush_context *context, uint8_t *name, void *object);

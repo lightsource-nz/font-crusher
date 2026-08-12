@@ -23,6 +23,16 @@ cmake_minimum_required(VERSION 3.17)
 # `cmake -E copy_directory` with no source argument, failing with cmake's bare usage message
 set(CRUSH_TOOLS_CONTEXT_TEMPLATE_DIR "${CMAKE_CURRENT_LIST_DIR}/context_template"
         CACHE INTERNAL "path to the crush context template bundled with font-crusher")
+# cached for the same reason as the template dir above: crush_invoke() may be called from any
+# directory in the consuming project, and a plain variable would be empty in a sibling one
+set(CRUSH_TOOLS_RUN_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/crush_run.cmake"
+        CACHE INTERNAL "path to the crush invocation wrapper bundled with font-crusher")
+
+# crush's own logging is captured and discarded unless the invocation fails, so that a build
+# shows one COMMENT line per font step rather than the hundreds of log lines a DEBUG-mode crush
+# emits per render. turn this ON to see it live -- specifically if crush HANGS, since captured
+# output is only replayed on exit and a step that never exits would otherwise show nothing
+option(CRUSH_VERBOSE "stream crush's own output to the build console instead of capturing it" OFF)
 
 # crush_invoke(OUTPUT <file> [<file> ...] COMMAND <arg> [<arg> ...]
 #              [WORKING_DIRECTORY <dir>] [DEPENDS <file> ...] [COMMENT <text>])
@@ -51,9 +61,24 @@ function(crush_invoke)
     endif()
 
     file(MAKE_DIRECTORY ${CI_WORKING_DIRECTORY})
+
+    # crush runs through crush_run.cmake rather than directly, so that its own log output is
+    # captured and only surfaced if it fails -- see that script. the COMMENT above is what the
+    # build actually shows, one line per step, like a compile line naming its source file.
+    #
+    # $<SEMICOLON> rather than a literal ';': the argument list has to survive as ONE argument to
+    # cmake -P, and a literal semicolon here would be expanded by add_custom_command into separate
+    # arguments, handing the script only the first of them. the generator expression emits the
+    # separator after that expansion has happened, so the script receives a proper CMake list
+    string(REPLACE ";" "$<SEMICOLON>" _ci_args "${CI_COMMAND}")
     add_custom_command(
         OUTPUT ${CI_OUTPUT}
-        COMMAND $<TARGET_FILE:crush> ${CI_COMMAND}
+        COMMAND ${CMAKE_COMMAND}
+                -DCRUSH_EXE=$<TARGET_FILE:crush>
+                -DCRUSH_WORKDIR=${CI_WORKING_DIRECTORY}
+                -DCRUSH_ARGS=${_ci_args}
+                -DCRUSH_VERBOSE=$<BOOL:${CRUSH_VERBOSE}>
+                -P ${CRUSH_TOOLS_RUN_SCRIPT}
         WORKING_DIRECTORY ${CI_WORKING_DIRECTORY}
         DEPENDS crush ${CI_DEPENDS}
         COMMENT "${CI_COMMENT}"

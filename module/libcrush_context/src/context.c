@@ -22,32 +22,32 @@ Light_Command_Define(cmd_crush_context_set, &cmd_crush_context, COMMAND_CONTEXT_
 Light_Command_Define(cmd_crush_context_push, &cmd_crush_context, COMMAND_CONTEXT_PUSH_NAME, COMMAND_CONTEXT_PUSH_DESCRIPTION, do_cmd_context_push, 0, 1);
 Light_Command_Define(cmd_crush_context_pop, &cmd_crush_context, COMMAND_CONTEXT_POP_NAME, COMMAND_CONTEXT_POP_DESCRIPTION, do_cmd_context_pop, 0, 0);
 
-static void print_usage_context();
-static void print_usage_context_new();
-static void print_usage_context_set();
-static void print_usage_context_push();
-static void print_usage_context_pop();
+static void print_usage_context(void);
+static void print_usage_context_new(void);
+static void print_usage_context_set(void);
+static void print_usage_context_push(void);
+static void print_usage_context_pop(void);
 uint8_t crush_cmd_context_init(struct light_command *cmd_parent)
 {
         return CODE_OK;
 }
-struct light_command *crush_cmd_context_get_command()
+struct light_command *crush_cmd_context_get_command(void)
 {
         return &cmd_crush_context;
 }
-struct light_command *crush_cmd_context_get_subcommand_new()
+struct light_command *crush_cmd_context_get_subcommand_new(void)
 {
         return &cmd_crush_context_new;
 }
-struct light_command *crush_cmd_context_get_subcommand_set()
+struct light_command *crush_cmd_context_get_subcommand_set(void)
 {
         return &cmd_crush_context_set;
 }
-struct light_command *crush_cmd_context_get_subcommand_push()
+struct light_command *crush_cmd_context_get_subcommand_push(void)
 {
         return &cmd_crush_context_push;
 }
-struct light_command *crush_cmd_context_get_subcommand_pop()
+struct light_command *crush_cmd_context_get_subcommand_pop(void)
 {
         return &cmd_crush_context_pop;
 }
@@ -73,7 +73,7 @@ static struct light_cli_invocation_result do_cmd_context_pop(struct light_cli_in
 {
         return (struct light_cli_invocation_result) {.code = LIGHT_CLI_RESULT_SUCCESS};
 }
-static void print_usage_context()
+static void print_usage_context(void)
 {
         printf(
                 "Usage:\n"
@@ -83,28 +83,28 @@ static void print_usage_context()
         );
 }
 
-static void print_usage_context_new()
+static void print_usage_context_new(void)
 {
         printf(
                 "Usage:\n"
                 "crush context new [<ctx_path>] \n"
         );
 }
-static void print_usage_context_set()
+static void print_usage_context_set(void)
 {
         printf(
                 "Usage:\n"
                 "crush context set [<ctx_path>] [options] \n"
         );
 }
-static void print_usage_context_push()
+static void print_usage_context_push(void)
 {
         printf(
                 "Usage:\n"
                 "crush context push [<ctx_path>] [options] \n"
         );
 }
-static void print_usage_context_pop()
+static void print_usage_context_pop(void)
 {
         printf(
                 "Usage:\n"

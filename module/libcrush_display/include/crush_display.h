@@ -34,10 +34,10 @@ struct crush_display_context {
         uint32_t next_id;
 };
 
-extern uint8_t crush_display_onload();
-extern struct crush_display_context *crush_display_context();
+extern uint8_t crush_display_onload(void);
+extern struct crush_display_context *crush_display_context(void);
 extern struct crush_display_context *crush_display_get_context(struct crush_context *root);
-extern crush_json_t *crush_display_create_context();
+extern crush_json_t *crush_display_create_context(void);
 extern void crush_display_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *json);
 extern struct crush_display *crush_display_context_get(struct crush_display_context *context, uint32_t id);
 extern struct crush_display *crush_display_context_get_by_id_string(struct crush_display_context *ctx, const uint8_t *id_string);
@@ -65,7 +65,7 @@ static inline uint8_t crush_display_refresh(struct crush_display *object)
 {
         return crush_display_context_refresh(object->context, object);
 }
-static inline uint8_t crush_display_commit()
+static inline uint8_t crush_display_commit(void)
 {
         return crush_display_context_commit(crush_display_context());
 }
@@ -83,23 +83,23 @@ extern const uint8_t *crush_display_get_name(struct crush_display *display);
 #define crush_display_get_context_object(_context) \
         crush_context_get_context_object_type(_context, CRUSH_DISPLAY_CONTEXT_OBJECT_NAME, struct crush_display_context *)
 
-static inline struct light_command *crush_display_get_command()
+static inline struct light_command *crush_display_get_command(void)
 {
         return &cmd_crush_display;
 }
-static inline struct light_command *crush_display_get_subcommand_import()
+static inline struct light_command *crush_display_get_subcommand_import(void)
 {
         return &cmd_crush_display_add;
 }
-static inline struct light_command *crush_display_get_subcommand_info()
+static inline struct light_command *crush_display_get_subcommand_info(void)
 {
         return &cmd_crush_display_info;
 }
-static inline struct light_command *crush_display_get_subcommand_list()
+static inline struct light_command *crush_display_get_subcommand_list(void)
 {
         return &cmd_crush_display_list;
 }
-static inline struct light_command *crush_display_get_subcommand_remove()
+static inline struct light_command *crush_display_get_subcommand_remove(void)
 {
         return &cmd_crush_display_remove;
 }

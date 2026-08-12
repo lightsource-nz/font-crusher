@@ -20,7 +20,7 @@
 struct object_loader {
         const uint8_t *name;
         const uint8_t *filename;
-        crush_json_t *(*create)();
+        crush_json_t *(*create)(void);
         void (*load)(struct crush_context *, const uint8_t *, crush_json_t *);
 };
 
@@ -80,23 +80,23 @@ static struct crush_context _root_context;
 static struct crush_context *root_context = &_root_context;
 
 static struct crush_context *crush_load_context_from_filesystem(struct crush_context *context);
-void crush_common_init()
+void crush_common_init(void)
 {
         light_debug("jansson lib version %s", jansson_version_str());
         json_set_alloc_funcs(light_alloc, light_free);
 }
-void crush_common_load_context()
+void crush_common_load_context(void)
 {
         current_context = root_context = crush_load_context_from_filesystem(root_context);
 }
-void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(uint8_t *), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *))
+void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(void), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *))
 {
         if(next_loader > LOADER_MAX) {
                 light_fatal("could not register loader '%s', maximum number of object loaders reached (%i)", name, LOADER_MAX);
         }
         loader[next_loader++]= (struct object_loader) {.name = name, .filename = filename, .create = create, .load = load};
 }
-uint32_t crush_common_get_initial_counter_value()
+uint32_t crush_common_get_initial_counter_value(void)
 {
         return rand() % (CRUSH_JSON_LPRIME + 1);
 }
@@ -105,14 +105,14 @@ uint32_t crush_common_get_next_counter_value(uint32_t value)
         return (value + CRUSH_JSON_INCREMENT) % CRUSH_JSON_LPRIME;
 }
 #define DATE_STR_SIZE 18
-uint8_t *crush_common_datetime_string()
+uint8_t *crush_common_datetime_string(void)
 {
         uint8_t *out = light_alloc(DATE_STR_SIZE);
         time_t time_now = time(NULL);
         strftime(out, DATE_STR_SIZE, "%d-%m-%y", localtime(&time_now));
         return out;
 }
-struct crush_context *crush_context()
+struct crush_context *crush_context(void)
 {
         return current_context;
 }

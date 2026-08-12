@@ -32,5 +32,5 @@ Light_Command_Declare(cmd_crush, NULL);
 
 extern uint8_t crush_process_command_line(int argc, char *argv[]);
 
-extern struct light_command *crush_command_root();
+extern struct light_command *crush_command_root(void);
 #endif

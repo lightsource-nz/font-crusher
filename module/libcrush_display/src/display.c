@@ -14,7 +14,7 @@
 #define COMMAND_DISPLAY_LIST_NAME               "list"
 #define COMMAND_DISPLAY_LIST_DESCRIPTION        "command used to list all entries in the display database"
 
-static void print_usage_context();
+static void print_usage_context(void);
 static struct light_cli_invocation_result do_cmd_display(struct light_cli_invocation *command);
 static struct light_cli_invocation_result do_cmd_display_add(struct light_cli_invocation *command);
 static struct light_cli_invocation_result do_cmd_display_info(struct light_cli_invocation *command);
@@ -37,14 +37,14 @@ Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:{}}"
 
-uint8_t crush_display_onload()
+uint8_t crush_display_onload(void)
 {
         crush_common_register_context_object_loader(OBJECT_NAME, JSON_FILE,
                                         crush_display_create_context, crush_display_load_context);
        
         return CODE_OK;
 }
-struct crush_display_context *crush_display_context()
+struct crush_display_context *crush_display_context(void)
 {
         return crush_display_get_context(crush_context());
 }
@@ -52,7 +52,7 @@ struct crush_display_context *crush_display_get_context(struct crush_context *ro
 {
         return crush_context_get_context_object_type(root, OBJECT_NAME, struct crush_display_context *);
 }
-crush_json_t *crush_display_create_context()
+crush_json_t *crush_display_create_context(void)
 {
         json_t *display_obj = json_pack(
                 CONTEXT_OBJECT_NEW_FMT,
@@ -281,7 +281,7 @@ const uint8_t *crush_display_get_name(struct crush_display *display)
 {
         return display->name;
 }
-static void print_usage_context()
+static void print_usage_context(void)
 {
         printf(
                 "Usage:\n"

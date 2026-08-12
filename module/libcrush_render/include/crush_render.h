@@ -48,9 +48,14 @@ struct crush_render {
 };
 
 // render-context API
-extern struct crush_render_context *crush_render_context();
+extern struct crush_render_context *crush_render_context(void);
 extern struct crush_render_context *crush_render_get_context(struct crush_context *root);
-extern crush_json_t *crush_render_create_context(uint8_t *path);
+// the `uint8_t *path` this used to declare was never passed and never read. it is registered
+// as a context-object create callback and invoked as create() with no arguments at all (see
+// crush_common_create_context()), so under C17's "unspecified parameters" it merely received
+// whatever happened to be in the argument register; under C23 the mismatch is a hard error.
+// the other three create callbacks -- display, font, module -- have always taken none
+extern crush_json_t *crush_render_create_context(void);
 extern void crush_render_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
 extern void crush_render_destroy_context(struct crush_render_context *context);
 extern struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint32_t id);
@@ -74,7 +79,7 @@ static inline uint8_t crush_render_refresh(struct crush_render *object)
 {
         return crush_render_context_refresh(object->context, object);
 }
-static inline uint8_t crush_render_commit()
+static inline uint8_t crush_render_commit(void)
 {
         return crush_render_context_commit(crush_render_context());
 }
@@ -83,8 +88,8 @@ extern crush_json_t *crush_render_object_serialize(struct crush_render *object);
 extern void crush_render_object_extract(crush_json_t *data, struct crush_render *object);
 extern struct crush_render *crush_render_object_deserialize(crush_json_t *data);
 
-extern void crush_render_module_load();
-extern void crush_render_module_unload();
+extern void crush_render_module_load(void);
+extern void crush_render_module_unload(void);
 
 extern uint8_t *crush_render_context_get_root_path(struct crush_render_context *context);
 extern void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *display);

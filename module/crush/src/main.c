@@ -21,7 +21,7 @@ Light_Application_Define(
 static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocation *invoke);
 Light_Command_Define(cmd_crush, &root_command, CRUSH_ROOT_COMMAND_NAME, CRUSH_ROOT_COMMAND_DESCRIPTION, do_cmd_crush, 0, 0);
 
-static void print_usage();
+static void print_usage(void);
 int main(int argc, char *argv[])
 {
         light_framework_init();
@@ -59,11 +59,11 @@ static struct light_cli_invocation_result do_cmd_crush(struct light_cli_invocati
         print_usage();
         return Result_Success;
 }
-struct light_command *crush_command_root()
+struct light_command *crush_command_root(void)
 {
         return &cmd_crush;
 }
-static void print_usage()
+static void print_usage(void)
 {
     light_info("Usage: crush export [-s <size>] [-o <name>] <font_filename> <output_directory>\n", NULL);
 }

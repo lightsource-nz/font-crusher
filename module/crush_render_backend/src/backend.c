@@ -26,7 +26,7 @@ static void worker__render_job_complete(struct render_engine *engine, struct ren
 static uint8_t *worker__render_job_copy_bitmap(FT_GlyphSlot glyph, uint8_t cell_width, uint8_t cell_height, uint8_t cell_ascent);
 static void worker__render_export_c_source(struct render_job *job);
 
-void render_backend_init()
+void render_backend_init(void)
 {
         light_debug("loading default render engine...");
         uint8_t status;
@@ -37,14 +37,14 @@ void render_backend_init()
         render_engine_engine_wait_for_online(&engine_default);
         light_debug("default render engine loaded successfully");
 }
-void render_backend_shutdown()
+void render_backend_shutdown(void)
 {
         light_debug("shutting down default render engine...");
         render_engine_cmd_shutdown(&engine_default);
         light_debug("done shutting down default render engine");
 }
 
-extern struct render_engine *render_engine_default()
+extern struct render_engine *render_engine_default(void)
 {
         return &engine_default;
 }

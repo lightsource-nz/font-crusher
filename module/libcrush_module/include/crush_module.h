@@ -67,10 +67,10 @@ extern void crush_module_release(struct crush_module *module);
 extern uint8_t crush_module_add_dependency(struct crush_module *module, struct crush_module *dependency);
 extern uint8_t crush_module_add_file(struct crush_module *module, uint8_t *filename);
 
-extern uint8_t crush_module_onload();
-extern struct crush_module_context *crush_module_context();
+extern uint8_t crush_module_onload(void);
+extern struct crush_module_context *crush_module_context(void);
 extern struct crush_module_context *crush_module_get_context(struct crush_context *root);
-extern crush_json_t *crush_module_create_context();
+extern crush_json_t *crush_module_create_context(void);
 extern void crush_module_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
 extern struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint32_t id);
 extern struct crush_module *crush_module_context_get_by_name(struct crush_module_context *context, const uint8_t *name);
@@ -88,7 +88,7 @@ static inline uint8_t crush_module_save(struct crush_module *object)
 {
         return crush_module_context_save(object->context, object);
 }
-static inline uint8_t crush_module_commit()
+static inline uint8_t crush_module_commit(void)
 {
         return crush_module_context_commit(crush_module_context());
 }
@@ -96,27 +96,27 @@ static inline uint8_t crush_module_commit()
 extern crush_json_t *crush_module_object_serialize(struct crush_module *font);
 extern struct crush_module *crush_module_object_deserialize(crush_json_t *data);
 
-static inline struct light_command *crush_get_command_module()
+static inline struct light_command *crush_get_command_module(void)
 {
         return &cmd_crush_module;
 }
-static inline struct light_command *crush_get_command_module_info()
+static inline struct light_command *crush_get_command_module_info(void)
 {
         return &cmd_crush_module_info;
 }
-static inline struct light_command *crush_get_command_module_add()
+static inline struct light_command *crush_get_command_module_add(void)
 {
         return &cmd_crush_module_add;
 }
-static inline struct light_command *crush_get_command_module_remove()
+static inline struct light_command *crush_get_command_module_remove(void)
 {
         return &cmd_crush_module_remove;
 }
-static inline struct light_command *crush_get_command_module_load()
+static inline struct light_command *crush_get_command_module_load(void)
 {
         return &cmd_crush_module_load;
 }
-static inline struct light_command *crush_get_command_module_unload()
+static inline struct light_command *crush_get_command_module_unload(void)
 {
         return &cmd_crush_module_unload;
 }

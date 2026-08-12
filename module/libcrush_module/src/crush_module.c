@@ -37,13 +37,13 @@ Light_Command_Define(cmd_crush_module_unload, &cmd_crush_module, COMMAND_MODULE_
 Light_Command_Define(cmd_crush_module_add, &cmd_crush_module, COMMAND_MODULE_ADD_NAME, COMMAND_MODULE_ADD_DESCRIPTION, do_cmd_module_add, 1, 1);
 Light_Command_Define(cmd_crush_module_remove, &cmd_crush_module, COMMAND_MODULE_REMOVE_NAME, COMMAND_MODULE_REMOVE_DESCRIPTION, do_cmd_module_remove, 1, 1);
 
-static void print_usage_module();
-static void print_usage_module_info();
-static void print_usage_module_list();
-static void print_usage_module_load();
-static void print_usage_module_unload();
-static void print_usage_module_add();
-static void print_usage_module_remove();
+static void print_usage_module(void);
+static void print_usage_module_info(void);
+static void print_usage_module_list(void);
+static void print_usage_module_load(void);
+static void print_usage_module_unload(void);
+static void print_usage_module_add(void);
+static void print_usage_module_remove(void);
 
 #define CONTEXT_OBJECT_FMT "{s:f,s:s,s:f,s:O}"
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
@@ -158,13 +158,13 @@ uint8_t crush_module_add_file(struct crush_module *module, uint8_t *filename)
         }
         module->file[module->file_count++] = filename;
 }
-uint8_t crush_module_onload()
+uint8_t crush_module_onload(void)
 {
         crush_common_register_context_object_loader(CRUSH_MODULE_CONTEXT_OBJECT_NAME, CRUSH_MODULE_CONTEXT_JSON_FILE,
                                         crush_module_create_context, crush_module_load_context);
         return CODE_OK;
 }
-struct crush_module_context *crush_module_context()
+struct crush_module_context *crush_module_context(void)
 {
         return crush_module_get_context(crush_context());
 }
@@ -172,7 +172,7 @@ struct crush_module_context *crush_module_get_context(struct crush_context *root
 {
         return crush_context_get_context_object_type(root, OBJECT_NAME, struct crush_module_context *);
 }
-crush_json_t *crush_module_create_context()
+crush_json_t *crush_module_create_context(void)
 {
         uint32_t next_id = crush_common_get_initial_counter_value();
         json_t *module_obj = json_pack(
@@ -371,7 +371,7 @@ static struct light_cli_invocation_result do_cmd_module_remove(struct light_cli_
 {
         return Result_Success;
 }
-static void print_usage_module()
+static void print_usage_module(void)
 {
         printf(
                 "Usage:\n"
@@ -381,42 +381,42 @@ static void print_usage_module()
                 "crush module add <url>\n"
         );
 }
-static void print_usage_module_info()
+static void print_usage_module_info(void)
 {
         printf(
                 "Usage:\n"
                 "crush module info <module_name> [options] \n"
         );
 }
-static void print_usage_module_list()
+static void print_usage_module_list(void)
 {
         printf(
                 "Usage:\n"
                 "crush module list [-f <filter_expr>] \n"
         );
 }
-static void print_usage_module_load()
+static void print_usage_module_load(void)
 {
         printf(
                 "Usage:\n"
                 "crush module load <module> \n"
         );
 }
-static void print_usage_module_unload()
+static void print_usage_module_unload(void)
 {
         printf(
                 "Usage:\n"
                 "crush module unload <module> \n"
         );
 }
-static void print_usage_module_add()
+static void print_usage_module_add(void)
 {
         printf(
                 "Usage:\n"
                 "crush module add <module_path> \n"
         );
 }
-static void print_usage_module_remove()
+static void print_usage_module_remove(void)
 {
         printf(
                 "Usage:\n"

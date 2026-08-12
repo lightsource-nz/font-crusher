@@ -7,7 +7,7 @@ static void _event_load(const struct light_module *module)
 {
         crush_common_init();
 }
-static void _event_launch()
+static void _event_launch(void)
 {
         crush_common_load_context();
 }

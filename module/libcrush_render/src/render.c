@@ -40,10 +40,10 @@ Light_Command_Define(cmd_crush_render_list, &cmd_crush_render, COMMAND_RENDER_LI
 Light_Command_Option_Define(opt_crush_render_new_font, &cmd_crush_render_new, OPTION_RENDER_NEW_FONT_NAME, OPTION_RENDER_NEW_FONT_CODE, OPTION_RENDER_NEW_FONT_DESC);
 Light_Command_Option_Define(opt_crush_render_new_display, &cmd_crush_render_new, OPTION_RENDER_NEW_DISPLAY_NAME, OPTION_RENDER_NEW_DISPLAY_CODE, OPTION_RENDER_NEW_DISPLAY_DESC);
 
-static void print_usage_render();
-static void print_usage_render_new();
-static void print_usage_render_info();
-static void print_usage_render_list();
+static void print_usage_render(void);
+static void print_usage_render_new(void);
+static void print_usage_render_info(void);
+static void print_usage_render_list(void);
 static void callback__render_job_done(struct render_job *job, void *arg);
 
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
@@ -53,19 +53,19 @@ static void callback__render_job_done(struct render_job *job, void *arg);
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
-void crush_render_module_load()
+void crush_render_module_load(void)
 {
         crush_common_register_context_object_loader(CRUSH_RENDER_CONTEXT_OBJECT_NAME, CRUSH_RENDER_CONTEXT_JSON_FILE, 
                                         crush_render_create_context, crush_render_load_context);
 }
-extern void crush_render_module_unload()
+extern void crush_render_module_unload(void)
 {
         light_debug("saving all pending changes to the object database");
         crush_render_commit();
         // TODO consider some mechanism to unregister object stores from central context
         crush_render_destroy_context(crush_render_context());
 }
-struct crush_render_context *crush_render_context()
+struct crush_render_context *crush_render_context(void)
 {
         return crush_render_get_context(crush_context());
 }
@@ -73,7 +73,7 @@ struct crush_render_context *crush_render_get_context(struct crush_context *root
 {
         return crush_context_get_context_object_type(root, OBJECT_NAME, struct crush_render_context *);
 }
-crush_json_t *crush_render_create_context(uint8_t *path)
+crush_json_t *crush_render_create_context(void)
 {
         uint32_t next_id = crush_common_get_initial_counter_value();
         json_t *render_obj = json_pack(
@@ -421,23 +421,35 @@ uint8_t crush_render_cancel_render_job(struct crush_render *render)
 }
 uint8_t crush_render_complete_render_job(struct crush_render *render)
 {
+        struct render_job *job = render->render_job;
+
         light_debug("processing completed render job '%s'", crush_render_get_name(render));
-        atomic_store(&render->output, render->render_job->result);
+        atomic_store(&render->output, job->result);
         // in production, by the time this code is run, the render engine should already have written
         // out the final glyph bitmaps to disk files, so this function will just log the completed
         // job and update the state of the metadata
 
-        if(render->render_job->res_pitch >= 0) {
-                light_info("echo render job '%s':\n", render->render_job->name);
-                for(uint8_t i = 0; i < strlen(RENDER_CHAR_SET); i++) {
-                        light_info("");
-                        light_info(render->render_job->result[i]);
-                        light_free(render->render_job->result[i]);
-                        light_info("");
-                }
-                light_free(render->render_job->result);
-                light_free(render->render_job);
+        //   this walk exists to free the in-memory glyph bitmaps; dumping them is a tracing
+        // convenience on the side. it logged at INFO before -- three calls per glyph, two of which
+        // were light_info("") printing nothing whatsoever -- so a single render job put ~280 lines
+        // through the build console, most of them blank. by this point the bitmaps are already on
+        // disk, so the only thing worth saying at INFO is nothing, and the dump belongs at TRACE
+        // behind one informative summary line.
+        //   the "%s" matters as much as the level does: the glyph rows used to be passed as the
+        // format string itself, so a '%' anywhere in the bitmap data would have been read as a
+        // conversion specifier, consuming arguments that were never pushed.
+        //   the guard that used to wrap this block tested `res_pitch >= 0` on a uint8_t field, so it
+        // was always true; dropping it changes nothing about when these frees run.
+        light_trace("render job '%s': %u glyphs, %ux%u cell, baseline row %u, pitch %u",
+                        job->name, (unsigned)strlen(RENDER_CHAR_SET),
+                        job->cell_width, job->cell_height, job->cell_ascent, job->res_pitch);
+        for(uint8_t i = 0; i < strlen(RENDER_CHAR_SET); i++) {
+                light_trace("glyph '%c': %s", RENDER_CHAR_SET[i], job->result[i]);
+                light_free(job->result[i]);
         }
+        light_free(job->result);
+        light_free(job);
+
         // TODO either make an option to enable notify signals, or just remove this entirely.
         // the primary crush application use case does not require notification, as the foreground
         // thread simply polls the render job until its state changes
@@ -445,6 +457,7 @@ uint8_t crush_render_complete_render_job(struct crush_render *render)
         // pthread_kill(job->caller, CRUSH_RENDER_CALLBACK_SIGNAL);
         atomic_store(&render->state, CRUSH_RENDER_STATE_DONE);
         crush_render_save(render);
+        return LIGHT_OK;
 }
 uint8_t crush_render_fail_render_job(struct crush_render *render)
 {
@@ -545,7 +558,7 @@ static struct light_cli_invocation_result do_cmd_render_list(struct light_cli_in
         return Result_Success;
 }
 
-static void print_usage_render()
+static void print_usage_render(void)
 {
         printf(
                 "Usage:\n"
@@ -553,7 +566,7 @@ static void print_usage_render()
                 "crush render new <render_id> <font_size_pt> [pixel_size] -f <font_id> -d <display_id> \n"
         );
 }
-static void print_usage_render_new()
+static void print_usage_render_new(void)
 {
         printf(
                 "Usage:\n"
@@ -563,14 +576,14 @@ static void print_usage_render_new()
                 "                scaling with this exact pixel size\n"
         );
 }
-static void print_usage_render_info()
+static void print_usage_render_info(void)
 {
         printf(
                 "Usage:\n"
                 "crush render info <render_id> \n"
         );
 }
-static void print_usage_render_list()
+static void print_usage_render_list(void)
 {
         printf(
                 "Usage:\n"

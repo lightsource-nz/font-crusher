@@ -30,11 +30,11 @@
 #define COMMAND_FONT_ADD_OPT_FACE_INDEX_NAME             "face-index"
 #define COMMAND_FONT_ADD_OPT_FACE_INDEX_DESC             "indicates which typeface index should be selected from the given font file"
 
-static void print_usage_font();
-static void print_usage_font_add();
-static void print_usage_font_remove();
-static void print_usage_font_info();
-static void print_usage_font_list();
+static void print_usage_font(void);
+static void print_usage_font_add(void);
+static void print_usage_font_remove(void);
+static void print_usage_font_info(void);
+static void print_usage_font_list(void);
 static struct light_cli_invocation_result do_cmd_font(struct light_cli_invocation *invoke);
 static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invocation *invoke);
 static struct light_cli_invocation_result do_cmd_font_remove(struct light_cli_invocation *invoke);
@@ -58,13 +58,13 @@ Light_Command_Switch_Define(cmd_crush_font_add__opt_face_index, &cmd_crush_font_
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:{}}"
 
-uint8_t crush_font_onload()
+uint8_t crush_font_onload(void)
 {
         crush_common_register_context_object_loader(OBJECT_NAME, JSON_FILE,
                                         crush_font_create_context, crush_font_load_context);
         return LIGHT_OK;
 }
-struct crush_font_context *crush_font_context()
+struct crush_font_context *crush_font_context(void)
 {
         return crush_font_get_context(crush_context());
 }
@@ -72,7 +72,7 @@ struct crush_font_context *crush_font_get_context(struct crush_context *root)
 {
         return crush_context_get_context_object_type(root, OBJECT_NAME, struct crush_font_context *);
 }
-crush_json_t *crush_font_create_context()
+crush_json_t *crush_font_create_context(void)
 {
         return json_pack(CONTEXT_OBJECT_NEW_FMT,
                 "version",      SCHEMA_VERSION,
@@ -587,7 +587,7 @@ static struct light_cli_invocation_result do_cmd_font_list(struct light_cli_invo
 {
         return Result_Success;
 }
-static void print_usage_font()
+static void print_usage_font(void)
 {
         printf(
                 "Usage:\n"
@@ -598,7 +598,7 @@ static void print_usage_font()
         );
 }
 
-static void print_usage_font_add()
+static void print_usage_font_add(void)
 {
         printf(
                 "Usage:\n"
@@ -606,21 +606,21 @@ static void print_usage_font_add()
                 "crush font add <name> <source-url> [<options>] \n"
         );
 }
-static void print_usage_font_remove()
+static void print_usage_font_remove(void)
 {
         printf(
                 "Usage:\n"
                 "crush font remove <name> [<options>] \n"
         );
 }
-static void print_usage_font_info()
+static void print_usage_font_info(void)
 {
         printf(
                 "Usage:\n"
                 "crush font info <name> [<options>] \n"
         );
 }
-static void print_usage_font_list()
+static void print_usage_font_list(void)
 {
         printf(
                 "Usage:\n"

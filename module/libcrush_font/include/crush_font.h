@@ -50,10 +50,10 @@ struct crush_font_context {
         crush_json_t *data;
 };
 
-extern uint8_t crush_font_onload();
-extern struct crush_font_context *crush_font_context();
+extern uint8_t crush_font_onload(void);
+extern struct crush_font_context *crush_font_context(void);
 extern struct crush_font_context *crush_font_get_context(struct crush_context *root);
-extern crush_json_t *crush_font_create_context();
+extern crush_json_t *crush_font_create_context(void);
 extern void crush_font_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
 extern void crush_font_release_context(struct crush_font_context *context);
 extern struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint32_t id);
@@ -82,7 +82,7 @@ static inline uint8_t crush_font_refresh(struct crush_font *object)
 {
         return crush_font_context_refresh(object->context, object);
 }
-static inline uint8_t crush_font_commit()
+static inline uint8_t crush_font_commit(void)
 {
         return crush_font_context_commit(crush_font_context());
 }
@@ -120,23 +120,23 @@ extern void crush_font_add_file(struct crush_font *font, uint8_t *filename);
 extern const uint8_t *crush_font_state_string(uint8_t state);
 extern uint8_t crush_font_state_code(const uint8_t *state_str);
 
-static inline struct light_command *crush_font_get_command()
+static inline struct light_command *crush_font_get_command(void)
 {
         return &cmd_crush_font;
 }
-static inline struct light_command *crush_font_get_subcommand_add()
+static inline struct light_command *crush_font_get_subcommand_add(void)
 {
         return &cmd_crush_font_add;
 }
-static inline struct light_command *crush_font_get_subcommand_remove()
+static inline struct light_command *crush_font_get_subcommand_remove(void)
 {
         return &cmd_crush_font_remove;
 }
-static inline struct light_command *crush_font_get_subcommand_info()
+static inline struct light_command *crush_font_get_subcommand_info(void)
 {
         return &cmd_crush_font_info;
 }
-static inline struct light_command *crush_font_get_subcommand_list()
+static inline struct light_command *crush_font_get_subcommand_list(void)
 {
         return &cmd_crush_font_list;
 }
