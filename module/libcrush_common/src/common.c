@@ -360,7 +360,9 @@ extern uint8_t *crush_path_join_n(uint8_t n, ...)
 // causes read() to stop at the first 0x1A (Ctrl-Z) byte, silently truncating binary files
 #define O_BINARY 0
 #endif
-uint8_t crush_file_copy(const char *to, const char *from)
+// `create_flags` selects between the two copy semantics below: O_EXCL to refuse an existing
+// destination, O_TRUNC to replace it
+static uint8_t _file_copy(const char *to, const char *from, int create_flags)
 {
         int fd_to, fd_from;
         char buf[4096];
@@ -371,7 +373,7 @@ uint8_t crush_file_copy(const char *to, const char *from)
         if (fd_from < 0)
                 return -1;
 
-        fd_to = open(to, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0666);
+        fd_to = open(to, O_WRONLY | O_CREAT | create_flags | O_BINARY, 0666);
         if (fd_to < 0)
                 goto out_error;
 
@@ -412,4 +414,14 @@ out_error:
 
         errno = saved_errno;
         return -1;
+}
+
+uint8_t crush_file_copy(const char *to, const char *from)
+{
+        return _file_copy(to, from, O_EXCL);
+}
+
+uint8_t crush_file_replace(const char *to, const char *from)
+{
+        return _file_copy(to, from, O_TRUNC);
 }

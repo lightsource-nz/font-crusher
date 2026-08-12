@@ -117,7 +117,13 @@ static inline uint8_t *crush_context_get_context_root_path(struct crush_context 
 {
         return context->path;
 }
+// copies `from` to `to`, REFUSING to overwrite an existing destination (fails with EEXIST).
+// the safe default, for callers who would be destroying something by proceeding
 uint8_t crush_file_copy(const char *to, const char *from);
+// the same, but replacing the destination if it exists. for callers whose source is
+// authoritative and whose operation therefore has to be repeatable -- `crush font add` on a
+// font already in the database has to succeed, not fail, or it cannot be re-run
+uint8_t crush_file_replace(const char *to, const char *from);
 // filesystem paths API
 extern uint8_t *crush_path_join(const uint8_t *path0, const uint8_t *path1);
 // NOTE the caller must always ensure that n is equal to the number of variadic arguments

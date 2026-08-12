@@ -435,13 +435,30 @@ const uint8_t *crush_font_state_string(uint8_t state)
                 case CRUSH_FONT_STATE_ERROR:
                 return CRUSH_FONT_STATE_ERROR_STR;
         }
+        // falling off the end of a non-void function is undefined behaviour, and this is
+        // called on the path that WRITES the database -- a state value outside the four above
+        // would have serialised whatever happened to be in the return register
+        return CRUSH_FONT_STATE_ERROR_STR;
 }
 uint8_t crush_font_state_code(const uint8_t *state_str)
 {
-        if(strcmp(state_str, CRUSH_FONT_STATE_NEW_STR))
+        // strcmp() returns 0 on a MATCH, so every one of these tests used to be inverted:
+        // "new" reported READY, "ready" reported NEW, and the two states with no test at all
+        // fell off the end of a non-void function. it was never called, which is the only
+        // reason it did no damage
+        if(strcmp(state_str, CRUSH_FONT_STATE_NEW_STR) == 0)
                 return CRUSH_FONT_STATE_NEW;
-        if(strcmp(state_str, CRUSH_FONT_STATE_READY_STR))
+        if(strcmp(state_str, CRUSH_FONT_STATE_READY_STR) == 0)
                 return CRUSH_FONT_STATE_READY;
+        if(strcmp(state_str, CRUSH_FONT_STATE_COPY_STR) == 0)
+                return CRUSH_FONT_STATE_COPY;
+        if(strcmp(state_str, CRUSH_FONT_STATE_ERROR_STR) == 0)
+                return CRUSH_FONT_STATE_ERROR;
+        // an unrecognised state is an error state: it means the database was written by a
+        // version that knows something this one does not, and treating that as "ready" would
+        // be the dangerous guess
+        light_warn("unrecognised font state '%s' in database", state_str);
+        return CRUSH_FONT_STATE_ERROR;
 }
 
 // shows information about the currently selected CRUSH_FONT, if any
@@ -499,6 +516,9 @@ static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invoc
         if(db_dir == NULL) {
                 if(0 != mkdir(font_db_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) {
                         light_error("failed to create font database directory at path '%s': [%s] %s", font_db_path, strerrorname_np(errno), strerror(errno));
+                        font->state = CRUSH_FONT_STATE_ERROR;
+                        crush_font_save(font);
+                        crush_font_commit();
                         return Result_Error;
                 }
         } else {
@@ -507,11 +527,28 @@ static struct light_cli_invocation_result do_cmd_font_add(struct light_cli_invoc
         if(ov_localfile) {
                 if(0 != mkdir(font->path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) && errno != EEXIST) {
                         light_error("failed to create font storage directory at path '%s': [%s] %s", font->path, strerrorname_np(errno), strerror(errno));
+                        font->state = CRUSH_FONT_STATE_ERROR;
+                        crush_font_save(font);
+                        crush_font_commit();
                         return Result_Error;
                 }
                 uint8_t *font_file_dest = crush_path_join(font->path, font->name);
-                if(0 != crush_file_copy(font_file_dest, font_file_path)) {
+                // REPLACE, not copy: adding a font that is already in the database has to
+                // succeed. it used to fail with EEXIST, which made `crush font add` a
+                // once-only operation and broke every rebuild -- worse, the build's context
+                // template is merged back over .crush on reconfigure, which resets the JSON
+                // index while leaving the stored file, so the command saw an empty index,
+                // decided the font was new, and then collided with the file still on disk.
+                // the source file is authoritative here, so overwriting is both correct and
+                // what makes the command repeatable
+                if(0 != crush_file_replace(font_file_dest, font_file_path)) {
                         light_error("failed to copy font file '%s' to crush database storage path '%s': [%s] %s", font->name, font_file_dest, strerrorname_np(errno), strerror(errno));
+                        // recorded rather than left at COPY: a font stuck mid-add is
+                        // indistinguishable from one being added right now, and the next run
+                        // would have no way to tell that this one never finished
+                        font->state = CRUSH_FONT_STATE_ERROR;
+                        crush_font_save(font);
+                        crush_font_commit();
                         return Result_Error;
                 }
                 font->state = CRUSH_FONT_STATE_READY;
