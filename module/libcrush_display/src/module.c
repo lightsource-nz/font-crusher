@@ -12,7 +12,7 @@ static void _event_load(const struct light_module *module)
 }
 static void _event_unload(const struct light_module *module)
 {
-        
+        crush_display_onunload();
 }
 static void _module_event(const struct light_module *module, uint8_t event, void *arg)
 {

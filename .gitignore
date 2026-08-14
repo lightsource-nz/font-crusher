@@ -1,2 +1,4 @@
 build/
+# any additional build tree alongside the default one, e.g. build-addrsan
+build-*/
 CMakeUserPresets.json

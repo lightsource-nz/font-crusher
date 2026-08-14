@@ -91,10 +91,30 @@ void crush_common_load_context(void)
 }
 void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(void), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *))
 {
-        if(next_loader > LOADER_MAX) {
+        //   >= , not > : loader[] has LOADER_MAX entries, so the last valid index is
+        // LOADER_MAX - 1. The old test let next_loader == LOADER_MAX through and wrote one
+        // past the end of the array. Latent only because three loaders register today
+        if(next_loader >= LOADER_MAX) {
                 light_fatal("could not register loader '%s', maximum number of object loaders reached (%i)", name, LOADER_MAX);
         }
         loader[next_loader++]= (struct object_loader) {.name = name, .filename = filename, .create = create, .load = load};
+}
+//   the counterpart to the above, for a module being unloaded. Removes by name rather than by
+// index so a module undoes its own registration without needing to know what else registered,
+// and unload order does not have to mirror load order exactly
+void crush_common_unregister_context_object_loader(const uint8_t *name)
+{
+        for(uint8_t i = 0; i < next_loader; i++) {
+                if(strcmp(loader[i].name, name) != 0)
+                        continue;
+                //   compacted rather than blanked: everything that walks this table iterates
+                // 0..next_loader and would treat a hole as a live loader
+                for(uint8_t j = i + 1; j < next_loader; j++)
+                        loader[j - 1] = loader[j];
+                next_loader--;
+                return;
+        }
+        light_warn("no context object loader named '%s' to unregister", name);
 }
 uint32_t crush_common_get_initial_counter_value(void)
 {

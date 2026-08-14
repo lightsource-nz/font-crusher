@@ -164,6 +164,14 @@ uint8_t crush_module_onload(void)
                                         crush_module_create_context, crush_module_load_context);
         return CODE_OK;
 }
+//   the counterpart to crush_module_onload(): registering the loader is the only thing that
+// function does, so withdrawing it is the whole of the teardown. The context object itself
+// is owned by crush_context, not by this module
+uint8_t crush_module_onunload(void)
+{
+        crush_common_unregister_context_object_loader(CRUSH_MODULE_CONTEXT_OBJECT_NAME);
+        return CODE_OK;
+}
 struct crush_module_context *crush_module_context(void)
 {
         return crush_module_get_context(crush_context());

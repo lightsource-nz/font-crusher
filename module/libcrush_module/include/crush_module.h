@@ -68,6 +68,8 @@ extern uint8_t crush_module_add_dependency(struct crush_module *module, struct c
 extern uint8_t crush_module_add_file(struct crush_module *module, uint8_t *filename);
 
 extern uint8_t crush_module_onload(void);
+// the counterpart to crush_module_onload(), called from the module's LF_EVENT_MODULE_UNLOAD handler
+extern uint8_t crush_module_onunload(void);
 extern struct crush_module_context *crush_module_context(void);
 extern struct crush_module_context *crush_module_get_context(struct crush_context *root);
 extern crush_json_t *crush_module_create_context(void);

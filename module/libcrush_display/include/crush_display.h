@@ -35,6 +35,8 @@ struct crush_display_context {
 };
 
 extern uint8_t crush_display_onload(void);
+// the counterpart to crush_display_onload(), called from the module's LF_EVENT_MODULE_UNLOAD handler
+extern uint8_t crush_display_onunload(void);
 extern struct crush_display_context *crush_display_context(void);
 extern struct crush_display_context *crush_display_get_context(struct crush_context *root);
 extern crush_json_t *crush_display_create_context(void);

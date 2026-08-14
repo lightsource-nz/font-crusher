@@ -51,6 +51,8 @@ struct crush_font_context {
 };
 
 extern uint8_t crush_font_onload(void);
+// the counterpart to crush_font_onload(), called from the module's LF_EVENT_MODULE_UNLOAD handler
+extern uint8_t crush_font_onunload(void);
 extern struct crush_font_context *crush_font_context(void);
 extern struct crush_font_context *crush_font_get_context(struct crush_context *root);
 extern crush_json_t *crush_font_create_context(void);

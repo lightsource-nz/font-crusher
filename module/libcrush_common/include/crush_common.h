@@ -107,6 +107,8 @@ extern void crush_common_load_context(void);
 // "unspecified", so the two spellings are no longer interchangeable. this one is called as
 // create() by crush_common_create_context(), so (void) is what it has always actually been
 extern void crush_common_register_context_object_loader(const uint8_t *name, const uint8_t *filename, crush_json_t *(*create)(void), void (*load)(struct crush_context *, const uint8_t *, crush_json_t *));
+// the counterpart, for a module being unloaded: removes the loader it registered, by name
+extern void crush_common_unregister_context_object_loader(const uint8_t *name);
 extern uint32_t crush_common_get_initial_counter_value(void);
 extern uint32_t crush_common_get_next_counter_value(uint32_t value);
 extern uint8_t *crush_common_datetime_string(void);

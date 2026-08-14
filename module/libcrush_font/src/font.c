@@ -64,6 +64,14 @@ uint8_t crush_font_onload(void)
                                         crush_font_create_context, crush_font_load_context);
         return LIGHT_OK;
 }
+//   the counterpart to crush_font_onload(): registering the loader is the only thing that
+// function does, so withdrawing it is the whole of the teardown. The context object itself
+// is owned by crush_context, not by this module
+uint8_t crush_font_onunload(void)
+{
+        crush_common_unregister_context_object_loader(OBJECT_NAME);
+        return LIGHT_OK;
+}
 struct crush_font_context *crush_font_context(void)
 {
         return crush_font_get_context(crush_context());
