@@ -47,7 +47,13 @@ struct crush_font_context {
         const uint8_t *file_path;
         uint8_t *subdir_path;
         uint32_t next_id;
+        //   `data` is the "contextFonts" sub-object, taken with an incref by the O in
+        // CONTEXT_OBJECT_FMT. `data_root` is the whole document the loader handed over --
+        // crush_load_context_from_filesystem() states that the receiving loader becomes its
+        // owner, so it has to be kept to be released. Without it that reference is
+        // unreachable and the entire document leaks
         crush_json_t *data;
+        crush_json_t *data_root;
 };
 
 extern uint8_t crush_font_onload(void);

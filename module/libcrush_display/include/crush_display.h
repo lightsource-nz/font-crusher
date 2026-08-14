@@ -29,7 +29,11 @@ struct crush_display_context {
         light_mutex_t lock;
         struct crush_context *root;
         uint16_t version;
+        //   `data` is the sub-object taken with an incref by the O in CONTEXT_OBJECT_FMT.
+        // `data_root` is the whole document the loader handed over -- the loader becomes its
+        // owner, so it has to be kept to be released, or the document leaks
         crush_json_t *data;
+        crush_json_t *data_root;
         const uint8_t *file_path;
         uint32_t next_id;
 };
@@ -39,6 +43,8 @@ extern uint8_t crush_display_onload(void);
 extern uint8_t crush_display_onunload(void);
 extern struct crush_display_context *crush_display_context(void);
 extern struct crush_display_context *crush_display_get_context(struct crush_context *root);
+// releases everything crush_display_load_context() built; caller detaches it first
+extern void crush_display_release_context(struct crush_display_context *context);
 extern crush_json_t *crush_display_create_context(void);
 extern void crush_display_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *json);
 extern struct crush_display *crush_display_context_get(struct crush_display_context *context, uint32_t id);

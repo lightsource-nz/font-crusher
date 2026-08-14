@@ -18,7 +18,11 @@ struct crush_module_context {
         uint16_t version;
         atomic_uint_least32_t next_id;
         const uint8_t *file_path;
+        //   `data` is the sub-object taken with an incref by the O in CONTEXT_OBJECT_FMT.
+        // `data_root` is the whole document the loader handed over -- the loader becomes its
+        // owner, so it has to be kept to be released, or the document leaks
         crush_json_t *data;
+        crush_json_t *data_root;
 };
 
 #define CRUSH_MODULE_STATE_NEW          0
@@ -72,6 +76,8 @@ extern uint8_t crush_module_onload(void);
 extern uint8_t crush_module_onunload(void);
 extern struct crush_module_context *crush_module_context(void);
 extern struct crush_module_context *crush_module_get_context(struct crush_context *root);
+// releases everything crush_module_load_context() built; caller detaches it first
+extern void crush_module_release_context(struct crush_module_context *context);
 extern crush_json_t *crush_module_create_context(void);
 extern void crush_module_load_context(struct crush_context *context, const uint8_t *file_path, crush_json_t *data);
 extern struct crush_module *crush_module_context_get(struct crush_module_context *context, const uint32_t id);

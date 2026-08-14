@@ -118,6 +118,9 @@ extern bool crush_context_try_load_from_path(uint8_t *path, struct crush_context
 extern void crush_context_create_under_path(uint8_t *path, struct crush_context *context);
 extern void crush_context_add_context_object(struct crush_context *context, uint8_t *name, void *object);
 extern void *crush_context_get_context_object(struct crush_context *context, uint8_t *name);
+//   detaches a context object, for a module disposing of it on unload. Detach only: the
+// module owns the object and frees it itself, since only the module knows what hangs off it
+extern void crush_context_remove_context_object(struct crush_context *context, uint8_t *name);
 static inline uint8_t *crush_context_get_context_root_path(struct crush_context *context)
 {
         return context->path;

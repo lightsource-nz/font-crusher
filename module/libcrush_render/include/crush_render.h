@@ -29,7 +29,11 @@ struct crush_render_context {
         const uint8_t *file_path;
         uint16_t version;
         atomic_uint_least32_t next_id;
+        //   `data` is the sub-object taken with an incref by the O in CONTEXT_OBJECT_FMT.
+        // `data_root` is the whole document the loader handed over -- the loader becomes its
+        // owner, so it has to be kept to be released, or the document leaks
         crush_json_t *data;
+        crush_json_t *data_root;
 };
 
 struct crush_render {

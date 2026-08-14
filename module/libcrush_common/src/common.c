@@ -301,9 +301,32 @@ _error:
 }
 void crush_context_add_context_object(struct crush_context *context, uint8_t *name, void *object)
 {
+        // object[] has CRUSH_CONTEXT_OBJECTS_MAX entries and object_count was incremented with
+        // no test at all, so a fifth context object would have written past the end
+        if(context->object_count >= CRUSH_CONTEXT_OBJECTS_MAX) {
+                light_fatal("could not attach context object '%s', maximum reached (%i)",
+                                name, CRUSH_CONTEXT_OBJECTS_MAX);
+        }
         struct crush_context_object *cco = &context->object[context->object_count++];
         cco->name = name;
         cco->object = object;
+}
+//   the counterpart to the above, for a module disposing of its context object on unload.
+// Detaches only -- the module owns the object and frees it itself, because only the module
+// knows what hangs off it
+void crush_context_remove_context_object(struct crush_context *context, uint8_t *name)
+{
+        for(uint8_t i = 0; i < context->object_count; i++) {
+                if(strcmp(context->object[i].name, name) != 0)
+                        continue;
+                //   compacted rather than blanked: crush_context_get_context_object() walks
+                // 0..object_count and would read a hole as a live entry
+                for(uint8_t j = i + 1; j < context->object_count; j++)
+                        context->object[j - 1] = context->object[j];
+                context->object_count--;
+                return;
+        }
+        light_warn("no context object named '%s' to remove", name);
 }
 void *crush_context_get_context_object(struct crush_context *context, uint8_t *name)
 {

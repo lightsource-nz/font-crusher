@@ -44,13 +44,42 @@ uint8_t crush_display_onload(void)
 
         return CODE_OK;
 }
-//   the counterpart to crush_display_onload(): registering the loader is the only thing that
-// function does, so withdrawing it is the whole of the teardown. The context object itself
-// is owned by crush_context, not by this module
+//   the counterpart to crush_display_onload(): withdraw the loader, then dispose of the
+// context object that loader produced. This module owns that object -- it allocated it, and
+// the context loader hands the receiving loader ownership of the json document explicitly.
+//
+//   the context is only present if a crush context was found on the filesystem at startup,
+// which is not true of every invocation, so its absence is normal rather than an error
 uint8_t crush_display_onunload(void)
 {
         crush_common_unregister_context_object_loader(OBJECT_NAME);
+
+        struct crush_context *root = crush_context();
+        if(!root)
+                return CODE_OK;
+        struct crush_display_context *ctx = crush_display_get_context(root);
+        if(!ctx)
+                return CODE_OK;
+
+        // detached first, so nothing can reach it through the context while it is coming apart
+        crush_context_remove_context_object(root, OBJECT_NAME);
+        crush_display_release_context(ctx);
+
         return CODE_OK;
+}
+//   releases everything crush_display_load_context() built, mirroring
+// crush_font_release_context(). Does NOT detach the context object -- the caller does that
+// first, so this also works on a context that was never attached
+void crush_display_release_context(struct crush_display_context *context)
+{
+        //   `data` carries its own reference from the O in CONTEXT_OBJECT_FMT, and data_root
+        // is the document that reference points into -- both have to go, in that order
+        json_decref(context->data);
+        json_decref(context->data_root);
+        // the loader's file_path came from realpath(_, NULL)
+        light_free((void *) context->file_path);
+        light_mutex_destroy(&context->lock);
+        light_free(context);
 }
 struct crush_display_context *crush_display_context(void)
 {
@@ -77,6 +106,8 @@ void crush_display_load_context(struct crush_context *context, const uint8_t *fi
         light_mutex_init_recursive(&display_context->lock);
         display_context->root = context;
         display_context->file_path = file_path;
+        // kept so crush_display_onunload() can release it: this loader owns `json` from here on
+        display_context->data_root = json;
         double version_f, next_id_f;
         json_unpack(json,
                 CONTEXT_OBJECT_FMT,

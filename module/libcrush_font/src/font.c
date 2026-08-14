@@ -64,12 +64,29 @@ uint8_t crush_font_onload(void)
                                         crush_font_create_context, crush_font_load_context);
         return LIGHT_OK;
 }
-//   the counterpart to crush_font_onload(): registering the loader is the only thing that
-// function does, so withdrawing it is the whole of the teardown. The context object itself
-// is owned by crush_context, not by this module
+//   the counterpart to crush_font_onload(): withdraw the loader, then dispose of the context
+// object that loader produced. This module owns that object -- it allocated it, and
+// crush_load_context_from_filesystem() hands the loader ownership of the json document
+// explicitly -- so nothing else is in a position to know what hangs off it.
+//
+//   the context is only present if a crush context was found on the filesystem at startup,
+// which is not true of every invocation, so its absence is normal rather than an error
 uint8_t crush_font_onunload(void)
 {
         crush_common_unregister_context_object_loader(OBJECT_NAME);
+
+        struct crush_context *root = crush_context();
+        if(!root)
+                return LIGHT_OK;
+        struct crush_font_context *ctx = crush_font_get_context(root);
+        if(!ctx)
+                return LIGHT_OK;
+
+        //   detached before it is released, so nothing can look the object up through the
+        // context while it is being taken apart
+        crush_context_remove_context_object(root, OBJECT_NAME);
+        crush_font_release_context(ctx);
+
         return LIGHT_OK;
 }
 struct crush_font_context *crush_font_context(void)
@@ -96,6 +113,8 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
         light_mutex_init_recursive(&font_ctx->lock);
         font_ctx->root = context;
         font_ctx->file_path = file_path;
+        // kept so crush_font_onunload() can release it: this loader owns `data` from here on
+        font_ctx->data_root = data;
         font_ctx->subdir_path = crush_path_join(context->path, CRUSH_FONT_CONTEXT_SUBDIR_NAME);
         //json_decref(version_obj);
         double version_f, next_id_f;
@@ -116,10 +135,22 @@ void crush_font_load_context(struct crush_context *context, const uint8_t *file_
         }
         crush_context_add_context_object(context, OBJECT_NAME, font_ctx);
 }
+//   releases everything crush_font_load_context() built. It was already here, declared and
+// never called, and it was missing three of the five things that function allocates -- the
+// json document the loader took ownership of, the realpath()'d file_path, and the mutex.
+//
+//   does NOT detach the context object; the caller does that first, so this can also be used
+// on a context that was never attached
 void crush_font_release_context(struct crush_font_context *context)
 {
-        light_free(context->subdir_path);
+        //   `data` carries its own reference from the O in CONTEXT_OBJECT_FMT, and data_root
+        // is the document that reference points into -- both have to go, in that order
         json_decref(context->data);
+        json_decref(context->data_root);
+        // crush_path_join() calloc()s, and the loader's file_path came from realpath(_, NULL)
+        light_free(context->subdir_path);
+        light_free((void *) context->file_path);
+        light_mutex_destroy(&context->lock);
         light_free(context);
 }
 struct crush_font *crush_font_context_get(struct crush_font_context *context, const uint32_t id)

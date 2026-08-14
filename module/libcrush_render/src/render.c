@@ -62,8 +62,22 @@ extern void crush_render_module_unload(void)
 {
         light_debug("saving all pending changes to the object database");
         crush_render_commit();
-        // TODO consider some mechanism to unregister object stores from central context
-        crush_render_destroy_context(crush_render_context());
+
+        //   this is the mechanism the TODO here used to ask for. Withdraw the loader, detach
+        // the context object, then release it -- in that order, so nothing can reach the
+        // object through the context while it is being taken apart.
+        //
+        //   this module unloads BEFORE crush_render_backend, so the engine worker is still
+        // alive at this point. That is safe: render_backend_shutdown() only stops the engine
+        // and never reaches the render context
+        crush_common_unregister_context_object_loader(CRUSH_RENDER_CONTEXT_OBJECT_NAME);
+
+        struct crush_context *root = crush_context();
+        struct crush_render_context *ctx = root ? crush_render_get_context(root) : NULL;
+        if(!ctx)
+                return;
+        crush_context_remove_context_object(root, CRUSH_RENDER_CONTEXT_OBJECT_NAME);
+        crush_render_destroy_context(ctx);
 }
 struct crush_render_context *crush_render_context(void)
 {
@@ -92,6 +106,8 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         light_mutex_init(&render_ctx->lock);
         render_ctx->root = context;
         render_ctx->file_path = file_path;
+        // kept so the context can be released: this loader owns `data` from here on
+        render_ctx->data_root = data;
         double version_f, next_id_f;
         json_unpack(data, CONTEXT_OBJECT_FMT,
                 "version",      &version_f,
@@ -105,12 +121,29 @@ void crush_render_load_context(struct crush_context *context, const uint8_t *fil
         render_ctx->next_id = (uint32_t) next_id_f;
         crush_context_add_context_object(context, CRUSH_RENDER_CONTEXT_OBJECT_NAME, render_ctx);
 }
+//   releases everything crush_render_load_context() built, mirroring
+// crush_font_release_context(). It used to decref `data` and stop there, leaving the document
+// the loader took ownership of, the realpath()'d file_path, the mutex and the context struct
+// itself all outstanding.
+//
+//   does NOT detach the context object; the caller does that first
 void crush_render_destroy_context(struct crush_render_context *context)
 {
-        mtx_lock(&context->lock);
+        //   the lock is taken to serialise against anything still holding it, then released
+        // before it is destroyed -- destroying a held mutex is undefined
+        light_mutex_do_lock(&context->lock);
+        //   `data` carries its own reference from the O in CONTEXT_OBJECT_FMT, and data_root
+        // is the document that reference points into -- both have to go, in that order
         json_decref(context->data);
         context->data = NULL;
-        mtx_unlock(&context->lock);
+        json_decref(context->data_root);
+        context->data_root = NULL;
+        light_mutex_do_unlock(&context->lock);
+
+        // the loader's file_path came from realpath(_, NULL)
+        light_free((void *) context->file_path);
+        light_mutex_destroy(&context->lock);
+        light_free(context);
 }
 struct crush_render *crush_render_context_get(struct crush_render_context *context, const uint32_t id)
 {
