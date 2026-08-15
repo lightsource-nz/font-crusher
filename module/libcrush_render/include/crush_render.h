@@ -49,6 +49,17 @@ struct crush_render {
         struct crush_display *display;
         uint8_t *path;
         uint8_t **output;
+        //   set once the worker thread has finished with this render ENTIRELY -- after its
+        // saves, after the context commit, after every touch of shared state. Runtime only:
+        // never serialised, and deliberately separate from `state` above.
+        //
+        //   `state` cannot serve this purpose even though it reaches DONE, because the polling
+        // loop calls crush_render_refresh(), which reloads the object from the context JSON and
+        // therefore overwrites whatever is in memory with whatever was last persisted. So state
+        // has to be stored BEFORE the save that persists it, which is necessarily before the
+        // worker has finished -- and a foreground thread released at that moment goes on to
+        // tear down the context this thread is still writing into
+        atomic_bool complete;
 };
 
 // render-context API

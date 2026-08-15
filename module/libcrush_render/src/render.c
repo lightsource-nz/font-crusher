@@ -351,6 +351,9 @@ void crush_render_init_ctx(struct crush_render_context *context, struct crush_re
         atomic_store(&render->id, CRUSH_JSON_ID_NEW);
         render->render_job = NULL;
         render->state = CRUSH_RENDER_STATE_NEW;
+        // light_alloc does not zero, so this has to be set explicitly or the foreground thread
+        // may read a completion that never happened
+        atomic_store(&render->complete, false);
         render->font = font;
         render->font_size = font_size;
         render->pixel_size = pixel_size;
@@ -508,6 +511,9 @@ uint8_t crush_render_complete_render_job(struct crush_render *render)
         // thread simply polls the render job until its state changes
         //
         // pthread_kill(job->caller, CRUSH_RENDER_CALLBACK_SIGNAL);
+        //   stored before the save, because the save is what persists it and the polling loop
+        // reads it back via crush_render_refresh(). What releases that loop is render->complete,
+        // set at the very end of callback__render_job_done() -- see the note there
         atomic_store(&render->state, CRUSH_RENDER_STATE_DONE);
         crush_render_save(render);
         return LIGHT_OK;
@@ -516,8 +522,11 @@ uint8_t crush_render_fail_render_job(struct crush_render *render)
 {
         light_debug("processing completed failed job '%s'", crush_render_get_name(render));
         light_free(render->render_job);
+        // as in crush_render_complete_render_job(): stored before the save that persists it.
+        // render->complete, set by the caller, is what releases the polling thread
         atomic_store(&render->state, CRUSH_RENDER_STATE_ERROR);
         crush_render_save(render);
+        return LIGHT_OK;
 }
 static struct light_cli_invocation_result do_cmd_render(struct light_cli_invocation *invoke)
 {
@@ -576,11 +585,18 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         // TODO develop terminal-aware output streams, and use them to display a
         // progress bar reflecting the status of the render job. set the sleep duration
         // in the loop to tune the update frequency of the status bar
-        do {
+        //   waits on render->complete rather than on render->state. state reaches DONE partway
+        // through the worker's callback, so waiting on it returned here while that thread was
+        // still writing to the render context -- and this function returning is what starts
+        // module teardown, which releases that context. complete is set last, after everything.
+        //   crush_render_refresh() is still called for the progress read, and is exactly why
+        // state cannot be the signal: it reloads the object from the json, overwriting whatever
+        // the worker put in memory with whatever was last persisted
+        while(!atomic_load(&new_render->complete)) {
                 light_debug("polling render job '%s', progress: '%d%%'...", new_render->name, (new_render->render_job->progress / new_render->render_job->prog_max));
                 light_platform_sleep_ms(POLLING_INTERVAL_MS);
                 crush_render_refresh(new_render);
-        } while(crush_render_get_state(new_render) == CRUSH_RENDER_STATE_RUNNING);
+        }
         
         return Result_Success;
 }
@@ -601,6 +617,25 @@ static void callback__render_job_done(struct render_job *job, void *arg)
                 break;
         }
         crush_render_commit();
+
+        //   PUBLISHED LAST, after every write this thread makes, and that ordering is the whole
+        // point. do_cmd_render_new() waits on this and returns as soon as it is set, after which
+        // the command completes and light_framework_shutdown() starts unloading modules --
+        // releasing the render context among them. libcrush_render unloads BEFORE
+        // crush_render_backend, which is where this worker is actually stopped, so anything this
+        // thread still had to do after releasing the foreground would race the teardown of the
+        // very context it is writing into.
+        //
+        //   the foreground used to poll render->state instead, which reaches DONE inside
+        // crush_render_complete_render_job() -- ahead of that function's own save and ahead of
+        // the commit above. That released the main thread two json writes early, and the
+        // resulting concurrent mutation corrupted the heap, surfacing later and somewhere
+        // unrelated in json_delete_object() freeing the DISPLAY context at shutdown.
+        //
+        //   state cannot do this job: the poll loop calls crush_render_refresh(), which reloads
+        // the object from the context json, so state must be set before the save that persists
+        // it -- necessarily before this thread is finished
+        atomic_store(&render->complete, true);
 }
 static struct light_cli_invocation_result do_cmd_render_info(struct light_cli_invocation *invoke)
 {
