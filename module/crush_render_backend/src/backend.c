@@ -433,7 +433,7 @@ static void worker__render_job_process(struct render_engine *engine, struct rend
         job->res_pitch = (job->cell_width + 7) / 8;
         uint8_t *char_list = RENDER_CHAR_SET;
         uint8_t num_glyphs = strlen(char_list);
-        job->result = calloc(sizeof(void *), num_glyphs);
+        job->result = light_calloc(sizeof(void *), num_glyphs);
         int32_t load_flags = FT_LOAD_RENDER;
         if(job->display->pixel_depth == 1) {
                 load_flags |= FT_LOAD_MONOCHROME;

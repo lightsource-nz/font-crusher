@@ -183,6 +183,26 @@ uint8_t crush_render_context_save(struct crush_render_context *context, struct c
                 context = object->context;
         if(!object->context)
                 object->context = context;
+
+        //   THE LOCK THIS FUNCTION ALWAYS UNLOCKED. Both exit paths below release
+        // context->lock, but nothing ever took it -- the acquire was simply missing, where
+        // crush_display_context_save(), crush_font_context_save() and
+        // crush_module_context_save() all take it at exactly this point.
+        //
+        //   the consequence was heap corruption, and it took a while to see why, because the
+        // damage never appeared anywhere near here. Releasing a mutex this thread does not hold
+        // does not fail loudly: it hands the lock away. The render path is the only one that
+        // runs a second thread -- callback__render_job_done() executes on the worker stack and
+        // calls back in through crush_render_commit() while the main thread is still polling --
+        // so from then on both threads could be inside context->data at once, mutating the same
+        // jansson hashtable. The crash then surfaced much later and somewhere else entirely, in
+        // json_delete_object() freeing that hashtable during shutdown.
+        //
+        //   that is also why only cmd_render_new__skewed failed while the other render tests
+        // passed: every render corrupted the heap, and only that one's allocation pattern made
+        // it fatal
+        light_mutex_do_lock(&context->lock);
+
         if(object->id == CRUSH_JSON_ID_NEW) {
                 light_debug("saving new object, name: '%s'", object->name);
                 uint32_t id_old, id_new;

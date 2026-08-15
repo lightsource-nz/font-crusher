@@ -355,7 +355,7 @@ uint8_t *crush_path_join(const uint8_t *path0, const uint8_t *path1)
         }
 
         // TODO this requires adding a calloc proxy routine to the light_common api
-        uint8_t *out = calloc(sizeof(uint8_t), total_length);
+        uint8_t *out = light_calloc(sizeof(uint8_t), total_length);
         strcat(out, path0);
         strcat(out, "/");
         strcat(out, path1);
@@ -371,7 +371,7 @@ extern uint8_t *crush_path_join_n(uint8_t n, ...)
                 light_warn("invalid argument: requires at least 2 args (%d given)", n);
                 return NULL;
         }
-        uint8_t **arg = calloc(n, sizeof(uint8_t *));
+        uint8_t **arg = light_calloc(n, sizeof(uint8_t *));
         // output string contains (n - 1) separators and 1 null char
         uint16_t total_length = n;
         va_list args;
@@ -386,7 +386,7 @@ extern uint8_t *crush_path_join_n(uint8_t n, ...)
                 light_free(arg);
                 return NULL;
         }
-        uint8_t *out = calloc(sizeof(uint8_t), total_length);
+        uint8_t *out = light_calloc(sizeof(uint8_t), total_length);
         for(uint8_t i = 0; i < n; i++) {
                 if(i > 0) strcat(out, "/");
                 strcat(out, arg[i]);
