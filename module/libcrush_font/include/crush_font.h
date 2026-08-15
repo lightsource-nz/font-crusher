@@ -26,7 +26,7 @@ Light_Command_Option_Declare(cmd_crush_font_add__opt_face_index, cmd_crush_font_
 
 #define CRUSH_FONT_FILE_MAX                     8
 struct crush_font {
-        uint32_t id;
+        _Atomic uint32_t id;
         crush_json_t *data;
         atomic_uchar state;
         bool source_is_local;
@@ -46,7 +46,7 @@ struct crush_font_context {
         uint16_t version;
         const uint8_t *file_path;
         uint8_t *subdir_path;
-        uint32_t next_id;
+        _Atomic uint32_t next_id;
         //   `data` is the "contextFonts" sub-object, taken with an incref by the O in
         // CONTEXT_OBJECT_FMT. `data_root` is the whole document the loader handed over --
         // crush_load_context_from_filesystem() states that the receiving loader becomes its

@@ -142,6 +142,14 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
         const uint8_t *_key;
         json_t *_val;
         light_mutex_do_lock(&ctx->lock);
+        //   json_object_foreach() yields BORROWED references. The json_decref() that used to sit
+        // at the bottom of this loop released a reference this function never took, so every
+        // display it iterated PAST lost one -- and once a count reached zero the object was
+        // deleted while ctx->data still pointed at it. The damage then surfaced at shutdown, in
+        // crush_display_release_context() walking that hashtable into freed memory.
+        //   which is why it needed more than one display to show: looking up
+        // 'test-display-skewed' iterates past 'test-display' and destroys it on the way.
+        // Confirmed by AddressSanitizer as a heap-use-after-free, freed right here.
         json_object_foreach(ctx->data, _key, _val) {
                 if(!strcmp(json_string_value(json_object_get(_val, "name")), name)) {
                         light_mutex_do_unlock(&ctx->lock);
@@ -149,9 +157,10 @@ struct crush_display *crush_display_context_get_by_name(struct crush_display_con
                         out->id = String_To_ID(_key);
                         return out;
                 }
-                json_decref(_val);
         }
         light_mutex_do_unlock(&ctx->lock);
+        // ...and this return was missing too, so a lookup that found nothing fell off the end
+        return NULL;
 }
 uint8_t crush_display_context_save(struct crush_display_context *context, struct crush_display *object)
 {

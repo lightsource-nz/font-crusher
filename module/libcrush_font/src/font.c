@@ -178,7 +178,8 @@ struct crush_font *crush_font_context_get_by_name(struct crush_font_context *con
                         out->id = String_To_ID(key);
                         return out;
                 }
-                json_decref(value);
+                // no json_decref here: json_object_foreach() borrows. See
+                // crush_display_context_get_by_name() for what releasing it caused
         }
         light_mutex_do_unlock(&context->lock);
         return NULL;
@@ -378,7 +379,15 @@ struct crush_font *crush_font_context_find_by_name(struct crush_font_context *co
 }
 uint8_t *crush_font_context_get_root_path(struct crush_font_context *context)
 {
-        crush_path_join(crush_context_get_context_root_path(context->root), CRUSH_FONT_CONTEXT_SUBDIR_NAME);
+        //   the `return` here was missing. The function is declared to return a pointer and
+        // simply fell off its end, so callers read whatever was left in the return register --
+        // which is crush_path_join()'s own result whenever the compiler happens to leave it
+        // there, and garbage whenever it does not. That made font->path correct by accident on
+        // one build and a wild pointer on another, and it is the reason the corruption tracked
+        // the WORKING DIRECTORY PATH LENGTH: change the strings, change the codegen, change
+        // whether the accident holds.
+        //   the same omission was in crush_render_context_get_root_path()
+        return crush_path_join(crush_context_get_context_root_path(context->root), CRUSH_FONT_CONTEXT_SUBDIR_NAME);
 }
 #define FONT_NAME_LENGTH        64
 #define SOURCE_FIELD_LENGTH     64

@@ -49,7 +49,7 @@
 #define QUEUE_BLOCKING          1
 
 struct render_job {
-        uint8_t state;
+        _Atomic uint8_t state;
         thrd_t caller;
         int cb_signal;
         const uint8_t *name;
@@ -64,7 +64,7 @@ struct render_job {
         void *cb_arg;
         void (*callback)(struct render_job *, void *);
         uint8_t *output_path;
-        uint16_t progress;
+        _Atomic uint16_t progress;
         uint16_t prog_max;
         uint8_t res_pitch;
         uint8_t **result;

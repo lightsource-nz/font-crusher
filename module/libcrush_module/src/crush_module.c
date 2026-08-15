@@ -258,14 +258,21 @@ struct crush_module *crush_module_context_get_by_name(struct crush_module_contex
         const uint8_t *_key;
         json_t *_val;
         // TODO place sync barriers around access to the object store
+        //   two bugs here, both shared with crush_render_context_get_by_name():
+        //   json_object_foreach() borrows, so neither decref was ours to make -- see
+        // crush_display_context_get_by_name(), where AddressSanitizer caught the same mistake
+        // deleting objects the context still referenced.
+        //   and the test was INVERTED. strcmp() returns zero on a match, so `if(strcmp(...))`
+        // returned the first entry whose name does NOT match, which for any context with more
+        // than one entry is simply the wrong object
         json_object_foreach(context->data, _key, _val) {
-                if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
+                if(!strcmp(json_string_value(json_object_get(_val, "name")), name)) {
                         struct crush_module *out = crush_module_object_deserialize(_val);
-                        json_decref(_val);
+                        out->id = String_To_ID(_key);
                         return out;
                 }
-                json_decref(_val);
         }
+        return NULL;
 }
 uint8_t crush_module_context_save(struct crush_module_context *context, struct crush_module *object)
 {

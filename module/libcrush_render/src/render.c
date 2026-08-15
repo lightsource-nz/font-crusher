@@ -159,14 +159,17 @@ struct crush_render *crush_render_context_get_by_name(struct crush_render_contex
         const uint8_t *_key;
         json_t *_val;
         // TODO place sync barriers around access to the object store
+        //   as in crush_module_context_get_by_name(): json_object_foreach() borrows, so neither
+        // decref was ours to make, and the test was inverted -- strcmp() returns zero on a
+        // match, so this returned the first entry whose name does NOT match
         json_object_foreach(context->data, _key, _val) {
-                if(strcmp(json_string_value(json_object_get(_val, "name")), name)) {
+                if(!strcmp(json_string_value(json_object_get(_val, "name")), name)) {
                         struct crush_render *out = crush_render_object_deserialize(_val);
-                        json_decref(_val);
+                        out->id = String_To_ID(_key);
                         return out;
                 }
-                json_decref(_val);
         }
+        return NULL;
 }
 uint8_t crush_render_context_save(struct crush_render_context *context, struct crush_render *object)
 {
@@ -342,7 +345,10 @@ struct crush_render *crush_render_object_deserialize(crush_json_t *data)
 }
 uint8_t *crush_render_context_get_root_path(struct crush_render_context *context)
 {
-        crush_path_join(crush_context_get_context_root_path(context->root), CRUSH_RENDER_CONTEXT_SUBDIR_NAME);
+        // see crush_font_context_get_root_path(): the `return` was missing here too, so this
+        // handed back whatever was in the return register rather than the path it had just
+        // built -- correct by accident when the compiler left crush_path_join()'s result there
+        return crush_path_join(crush_context_get_context_root_path(context->root), CRUSH_RENDER_CONTEXT_SUBDIR_NAME);
 }
 void crush_render_init_ctx(struct crush_render_context *context, struct crush_render *render, const uint8_t *name, struct crush_font *font, uint8_t font_size, uint8_t pixel_size, struct crush_display *display)
 {

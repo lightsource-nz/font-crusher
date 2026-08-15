@@ -13,7 +13,11 @@ Light_Command_Declare(cmd_crush_display_remove, cmd_crush_display);
 struct crush_display {
         struct crush_display_context *context;
         crush_json_t *json;
-        uint32_t id;
+        //   _Atomic because crush_display_context_save() reaches it with atomic_store(). C11
+        // requires the operand of an atomic operation to BE an atomic object: gcc accepts a
+        // plain type here, clang rejects it, and clang is right -- an atomic operation on a
+        // non-atomic object is ill-formed, not merely unchecked
+        _Atomic uint32_t id;
         const uint8_t *name;
         const uint8_t *description;
         uint16_t resolution_h;
@@ -35,7 +39,7 @@ struct crush_display_context {
         crush_json_t *data;
         crush_json_t *data_root;
         const uint8_t *file_path;
-        uint32_t next_id;
+        _Atomic uint32_t next_id;
 };
 
 extern uint8_t crush_display_onload(void);

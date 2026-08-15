@@ -37,7 +37,7 @@ struct crush_module_context {
 struct crush_module {
         struct crush_module_context *context;
         crush_json_t *data;
-        uint32_t id;
+        _Atomic uint32_t id;
         atomic_uchar state;
         const uint8_t *name;
         uint16_t version_seq;

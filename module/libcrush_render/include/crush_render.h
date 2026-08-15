@@ -39,16 +39,19 @@ struct crush_render_context {
 struct crush_render {
         struct crush_render_context *context;
         crush_json_t *data;
-        uint32_t id;
+        _Atomic uint32_t id;
         struct render_job *render_job;
         uint8_t *name;
-        uint8_t state;
+        _Atomic uint8_t state;
         struct crush_font *font;
         uint8_t font_size;
         uint8_t pixel_size;
         struct crush_display *display;
         uint8_t *path;
-        uint8_t **output;
+        //   _Atomic: the worker publishes this with atomic_store() from its own thread. Same
+        // rule as id and state above -- the operand of an atomic operation has to be an atomic
+        // object, and a pointer is no exception
+        _Atomic(uint8_t **) output;
         //   set once the worker thread has finished with this render ENTIRELY -- after its
         // saves, after the context commit, after every touch of shared state. Runtime only:
         // never serialised, and deliberately separate from `state` above.
