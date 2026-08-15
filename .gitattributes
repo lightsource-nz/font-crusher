@@ -1,0 +1,13 @@
+#   Shell scripts MUST check out with LF endings, on every platform.
+#
+#   This repo is worked on with core.autocrlf=true, which rewrites text files to CRLF in the
+# working tree. For C sources that is harmless. For a shell script it is not: bash reads the
+# trailing \r as part of each command and fails with `$'\r': command not found`, or silently
+# passes an argument with a carriage return glued to the end of it. The script is not broken and
+# does not look broken -- it is a checkout artifact, and it shows up on a fresh clone, which is
+# the least convenient moment to meet it.
+#
+#   the three scripts here (install_freetype2.sh and the two ASan repro drivers) are all run
+# under WSL or a Linux host, so every one of them is exposed.
+*.sh    text eol=lf
+*.bash  text eol=lf
