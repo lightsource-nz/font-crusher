@@ -43,4 +43,16 @@
                         @{ Exe = 'bin/crush.exe'; Args = @('font', 'list') }
                 )
         }
+
+        #   everything lands in bin/ here, because CMakeLists sets CMAKE_RUNTIME_OUTPUT_DIRECTORY
+        # so the DLLs sit beside crush. Nearly all of this suite's coverage comes from the crush
+        # binary itself: the tests are ctest invocations of crush subcommands rather than unit
+        # tests linked against the library.
+        #   the vendored freetype and jansson trees are excluded -- measuring third-party code
+        # we do not test would only dilute the number that matters
+        Coverage = @{
+                Objects     = 'bin/*'
+                IgnoreRegex = '(/lib/|/usr/|sanitizers/|_deps/|/freetype/|/jansson/)'
+                CMakeArgs   = @('-DCOPY_CONTEXT=true', '-DCOPY_CONTEXT_NAME=test_context_default')
+        }
 }
