@@ -1,17 +1,14 @@
 # Builds and tests font-crusher on every push and pull request.
 #
-# The simplest of the three project workflows, because crush is a host tool: no cross toolchain,
-# no pico-sdk, no board matrix. It needs the framework beside it and its own vendored freetype
-# and jansson, and then one command.
+# The simplest caller of the shared workflow: crush is a host tool, so there is no cross
+# toolchain, no pico-sdk and no board matrix. It needs the framework beside it -- which the
+# shared workflow always checks out -- and its own vendored freetype and jansson, which arrive
+# with the recursive checkout of this repository.
 #
-# As with the others, this drives scripts/test.ps1 rather than invoking cmake itself, so CI runs
-# the same path a developer does. The dependency layout is what makes that free -- light-env.ps1
-# resolves ../<name> relative to the project, so checking the framework out as a sibling inside
-# the workspace configures nothing:
-#
-#     $GITHUB_WORKSPACE/
-#       font-crusher/           <- this repository
-#       light_framework_mk3/    <- LIGHT_PATH
+# scripts/test.ps1 builds everything, runs the 93 CTest cases, then runs the smoke command. The
+# smoke matters more here than anywhere else: crush is the heaviest consumer of light_cli -- 23
+# commands covering registration, parsing, dispatch and aliasing, plus the whole module
+# load/unload cycle -- and none of that is under CTest.
 name: CI
 
 on:
@@ -30,41 +27,10 @@ permissions:
 jobs:
   test:
     name: build and test crush
-    runs-on: ubuntu-latest
-    steps:
-      #   recursive: freetype and jansson are vendored as submodules under module/, and freetype
-      # carries one of its own (dlg). A non-recursive checkout gets empty directories and fails
-      # in CMake naming a missing CMakeLists rather than a missing submodule.
-      - uses: actions/checkout@v4
-        with:
-          path: font-crusher
-          submodules: recursive
-
-      - uses: actions/checkout@v4
-        with:
-          repository: lightsource-nz/light_framework_mk3
-          path: light_framework_mk3
-          submodules: recursive
-
-      - name: install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build
-
-      #   builds crush, runs its CTest suite, and then runs the smoke command the project
-      # declares. The smoke matters here more than anywhere else: crush is the heaviest consumer
-      # of light_cli -- 23 commands covering registration, parsing, dispatch and aliasing, plus
-      # the whole module load/unload cycle -- and none of that is under CTest.
-      - name: test
-        working-directory: font-crusher
-        shell: pwsh
-        run: ./scripts/test.ps1
-
-      #   crush is what every other project's font rendering runs through, so a build of it is
+    uses: lightsource-nz/light_framework_mk3/.github/workflows/project-test.yml@main
+    with:
+      project: font-crusher
+      # crush is what every other project's font rendering runs through, so a build of it is
       # worth keeping off a green run
-      - name: upload crush
-        uses: actions/upload-artifact@v4
-        with:
-          name: crush
-          if-no-files-found: error
-          path: font-crusher/build/bin/crush
+      artifact_path: font-crusher/build/bin/crush
+      artifact_name: crush
