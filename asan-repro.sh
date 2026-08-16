@@ -2,7 +2,10 @@
 #   runs the cmd_render_new__skewed reproduction against the clang/ASan build in WSL.
 #   the deep directory name is deliberate: the trigger is working-directory PATH LENGTH, which
 # changes stored path lengths and therefore heap layout. See repro.sh for the Windows version.
-root=/mnt/c/Users/aful018/projects/c/font-crusher
+#   derived from this script's own location, never hardcoded. Under WSL that resolves to the
+# /mnt/... view automatically when the script is invoked through it, which is the only way this
+# one is ever run. FONT_CRUSHER_PATH overrides
+root="${FONT_CRUSHER_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 d="$HOME/asan-repro-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 C="$HOME/fc-asan/bin/crush"
 

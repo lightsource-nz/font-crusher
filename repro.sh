@@ -8,7 +8,10 @@
 # directory changes layout between runs -- each trial must start from a fresh context or the
 # comparison is meaningless.
 set -u
-root=/c/Users/aful018/projects/c/font-crusher
+#   derived from this script's own location, never hardcoded -- the repo root is wherever this
+# file was checked out to. FONT_CRUSHER_PATH overrides, for the odd case of running this against
+# a build tree elsewhere
+root="${FONT_CRUSHER_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 d="$root/build/reprodir_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 crush="$root/build/bin/crush.exe"
 

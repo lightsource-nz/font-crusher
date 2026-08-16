@@ -15,7 +15,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/Users/aful018/tools/w64devkit/bin/gdb.exe",
+            "miDebuggerPath": "${env:LIGHT_HOST_GDB}",
             "setupCommands": [
                 {
                     "description": "disable halting on thread management signals",
@@ -57,7 +57,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/Users/aful018/tools/w64devkit/bin/gdb.exe",
+            "miDebuggerPath": "${env:LIGHT_HOST_GDB}",
             "setupCommands": [
                 {
                     "description": "disable halting on thread management signals",
@@ -99,7 +99,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/Users/aful018/tools/w64devkit/bin/gdb.exe",
+            "miDebuggerPath": "${env:LIGHT_HOST_GDB}",
             "setupCommands": [
                 {
                     "description": "disable halting on thread management signals",
@@ -141,7 +141,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/Users/aful018/tools/w64devkit/bin/gdb.exe",
+            "miDebuggerPath": "${env:LIGHT_HOST_GDB}",
             "setupCommands": [
                 {
                     "description": "disable halting on thread management signals",

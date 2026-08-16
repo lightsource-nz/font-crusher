@@ -1,19 +1,34 @@
 {
+    //   NO ABSOLUTE PATHS -- this file used to name one developer's C:\Users\<name>\tools three
+    // times over, which no second machine could satisfy.
+    //
+    //   the tool directory comes from the environment, set by light-env.ps1 from the gitignored
+    // user.config.ps1 (or from its derived defaults). For it to be populated, start VS Code from
+    // a shell that has dot-sourced it:
+    //
+    //     . $env:LIGHT_PATH/scripts/light-env.ps1
+    //     code .
+    //
+    //   an unset variable expands to nothing and simply leaves that entry off PATH, so a
+    // developer whose toolchain is already on PATH needs none of this. Building from the terminal
+    // via scripts/build.ps1 does not depend on this file at all.
     "cmake.configurePreset": "user-crush-debug",
     "cmake.environment": {
-        "PATH": "C:\\Users\\aful018\\tools\\w64devkit\\bin;${env:PATH}"
+        "PATH": "${env:LIGHT_W64DEVKIT_BIN};${env:PATH}"
     },
     "cmake.configureSettings": {
-        
-        "PICO_SDK_PATH": "../../pico-sdk",
-        "LIGHT_PATH": "../light_framework_mk3"
+        //   sibling checkouts, against the workspace rather than the build tree: the old
+        // "../../pico-sdk" was relative to wherever CMake was invoked from, which is only
+        // correct for a build directory exactly one level down
+        "PICO_SDK_PATH": "${workspaceFolder}/../pico-sdk",
+        "LIGHT_PATH": "${workspaceFolder}/../light_framework_mk3"
     },
     "cmake.configureEnvironment": {
-        "LIGHT_PATH": "../light_framework_mk3"
+        "LIGHT_PATH": "${workspaceFolder}/../light_framework_mk3"
     },
     "terminal.integrated.env.windows": {
-        "Path": "C:\\Users\\aful018\\tools\\w64devkit\\bin;${env:PATH}",
-        "PATH": "C:\\Users\\aful018\\tools\\w64devkit\\bin;${env:PATH}"
+        "Path": "${env:LIGHT_W64DEVKIT_BIN};${env:PATH}",
+        "PATH": "${env:LIGHT_W64DEVKIT_BIN};${env:PATH}"
     },
     "files.associations": {
         "crush.h": "c",
