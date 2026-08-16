@@ -39,8 +39,11 @@
                 Preset = 'conf-crush-debug'
                 Target = 'crush'
                 Ctest  = $true
+                #   no .exe: light-test.ps1 appends the platform's suffix, so this one entry is
+                # correct on Windows and on the Linux runners CI uses. Spelled with .exe it was
+                # a "not built" failure everywhere except Windows.
                 Smoke  = @(
-                        @{ Exe = 'bin/crush.exe'; Args = @('font', 'list') }
+                        @{ Exe = 'bin/crush'; Args = @('font', 'list') }
                 )
         }
 
