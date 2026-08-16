@@ -35,9 +35,13 @@
         # parsing, dispatch and aliasing, plus the full module load/unload cycle -- and none of
         # that is under CTest. `crush font list` exercising all of it and exiting 0 is a
         # meaningful check that a bare test count would miss.
+        #   NO Target. Naming 'crush' built only that one target, so on a tree where the test
+        # executables did not already exist ctest reported every case "Not Run" and exited 8.
+        # That never showed here, because a working tree has them from earlier full builds -- it
+        # showed on the first CI run, where the checkout is fresh. Building everything is what
+        # makes the suite mean the same thing on both.
         Test = @{
                 Preset = 'conf-crush-debug'
-                Target = 'crush'
                 Ctest  = $true
                 #   no .exe: light-test.ps1 appends the platform's suffix, so this one entry is
                 # correct on Windows and on the Linux runners CI uses. Spelled with .exe it was
