@@ -27,7 +27,7 @@ permissions:
 jobs:
   test:
     name: build and test crush
-    uses: lightsource-nz/light_framework_mk3/.github/workflows/project-test.yml@main
+    uses: lightsource-nz/light_framework_mk3/.github/workflows/project-test.yml@v1
     with:
       project: font-crusher
       # crush is what every other project's font rendering runs through, so a build of it is
