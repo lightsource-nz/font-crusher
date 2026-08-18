@@ -14,15 +14,21 @@
  *  friends), so a session that ends badly has lost nothing a sequence of separate processes
  *  would have kept.
  *
- *  THE INTERESTING CONSTRAINT is that this loop runs inside light_cli's ONE-SHOT task, which the
- *  framework runs before it starts scheduling periodic tasks -- so blocking here blocks the
- *  periodic task list entirely. That is safe on the host and only on the host: log output is
- *  drained by a background thread (LIGHT_PLATFORM_HAS_C11_THREADS), not by a periodic task, so
- *  it keeps flowing while this loop waits on a human. On a single-core target the drain IS a
- *  periodic task, and a console written this way would print its prompt and then never print
- *  anything again. See light_stream.h.
+ *  THE INTERACTIVE (stdin, tty) PATH IS ASYNC. It used to be a loop reading and dispatching
+ *  every line inline, inside light_cli's ONE-SHOT task -- which the framework runs to completion
+ *  before it starts scheduling periodic tasks at all, so blocking there (waiting on a human to
+ *  type) blocked every periodic task from ever running, including, on a single-core target, the
+ *  one draining log output: a console written that way would print its prompt and then never
+ *  print anything again. See light_stream.h.
+ *
+ *  Now `console` registers its OWN periodic task (_interactive_step()) that reads and queues (via
+ *  light_cli_queue_line()) exactly ONE line per tick, returning control to the scheduler after
+ *  each -- see cli_task() in light_cli for the other half, which drains and dispatches that queue
+ *  one line per tick of its own. A script or `--command` line, by contrast, never waits on a
+ *  human, so those two paths stay a plain synchronous loop (_run_stream()) as before.
  */
 #include <crush.h>
+#include "crush_private.h"
 #include <stdio.h>
 #include <errno.h>
 
@@ -180,14 +186,69 @@ static bool _run_builtin(int argc, char *argv[], bool *stop)
         }
         return false;
 }
-//   the read-eval loop itself, over any FILE*: a terminal, a pipe, or a script file. Returns the
-// number of commands that failed.
-//
-//   `interactive` is not the same question as "is this a terminal" and is passed in rather than
-// derived here: a script's lines are echoed (so a transcript shows what produced what) and are
-// not prompted for, while a terminal's are prompted for and must not be echoed back at the user
-// who just typed them.
-static uint32_t _run_stream(FILE *input, bool interactive, bool keep_going)
+//   non-NULL only while an interactive stdin session's periodic task is registered. A single
+// flag rather than a stack: only one interactive session can exist at a time, unlike scripts,
+// which nest routinely (a script naming another script is normal; a human re-typing `console`
+// at their own prompt is not something this needs to support -- see the check in
+// do_cmd_console() that refuses a second one)
+static bool interactive_active;
+
+bool crush_console_is_active(void)
+{
+        return interactive_active;
+}
+//   ends the interactive session: everything both exit points (EOF, and the 'exit'/'quit'
+// builtins) need to do. Returning LF_STATUS_SHUTDOWN rather than unregistering this task is
+// deliberate -- light_module_unregister_periodic_task() is documented as unsafe to call from
+// inside a running task, since the scheduler re-reads the task count on every pass and would
+// skip whatever this task's slot gets compacted into
+static uint8_t _interactive_stop(void)
+{
+        light_info("console session ended","");
+        interactive_active = false;
+        console_depth--;
+        return LF_STATUS_SHUTDOWN;
+}
+//   the periodic task an interactive session runs as: reads and queues (via
+// light_cli_queue_line(), never dispatched here directly) AT MOST ONE line per tick, then
+// returns control to the scheduler -- so every other periodic task, including a single-core
+// target's own log-output drain, runs between one typed command and the next instead of only
+// once the whole session ends. See light_cli.h's light_cli_queue_line()/cli_task() for where a
+// queued line is actually parsed and dispatched.
+static uint8_t _interactive_step(struct light_application *app)
+{
+        uint8_t line[CONSOLE_LINE_MAX];
+        uint8_t scratch[CONSOLE_LINE_MAX];
+        char *argv[LIGHT_CLI_MAX_TOKENS];
+
+        _prompt();
+        uint8_t status = _read_line(stdin, line, sizeof(line));
+        if(status == LINE_END)
+                return _interactive_stop();
+        if(status == LINE_OVERLONG) {
+                light_error("command line longer than %d characters, ignored", CONSOLE_LINE_MAX - 1);
+                return LF_STATUS_RUN;
+        }
+
+        uint8_t argc = 0;
+        snprintf((char *)scratch, sizeof(scratch), "%s", (char *)line);
+        if(light_cli_tokenize_line(scratch, argv, LIGHT_CLI_MAX_TOKENS, &argc) || !argc)
+                return LF_STATUS_RUN;
+
+        bool stop = false;
+        if(_run_builtin(argc, argv, &stop))
+                return stop ? _interactive_stop() : LF_STATUS_RUN;
+
+        if(!light_cli_queue_line(crush_command_root(), line))
+                light_error("command queue is full, '%s' dropped", line);
+        return LF_STATUS_RUN;
+}
+//   the read-eval loop itself, over any FILE*: a script file, or stdin fed by a pipe. Returns
+// the number of commands that failed. Never used for an interactive terminal any more -- that
+// path waits on a human and runs as its own periodic task instead (_interactive_step()) so it
+// cannot block the scheduler; everything reaching this loop is fed lines from something that
+// does not wait on anyone, so running it out to completion in one call is fine.
+static uint32_t _run_stream(FILE *input, bool keep_going)
 {
         //   ON THE STACK, one set per nesting level, because a script may invoke `console`
         // again. File-scope buffers would have the nested loop overwrite the line its parent's
@@ -200,9 +261,6 @@ static uint32_t _run_stream(FILE *input, bool interactive, bool keep_going)
         bool stop = false;
 
         while(!stop) {
-                if(interactive)
-                        _prompt();
-
                 uint8_t status = _read_line(input, line, sizeof(line));
                 if(status == LINE_END)
                         break;
@@ -226,7 +284,7 @@ static uint32_t _run_stream(FILE *input, bool interactive, bool keep_going)
                 // script's blank lines and comments are not commands and a prompt in front of
                 // them is noise. Through the stream layer rather than printf so it stays in
                 // order with the command's own logging instead of racing the drain worker
-                if(!interactive && (tokenized || argc))
+                if(tokenized || argc)
                         light_stream_message_f_faster(light_stream_stdout, "%s%s\n", CONSOLE_PROMPT, line);
 
                 if(tokenized) {
@@ -259,7 +317,7 @@ static uint32_t _run_script(const uint8_t *path, bool keep_going)
                 return 1;
         }
         light_info("running script '%s'", path);
-        uint32_t failures = _run_stream(script, false, keep_going);
+        uint32_t failures = _run_stream(script, keep_going);
         fclose(script);
         return failures;
 }
@@ -299,26 +357,30 @@ static struct light_cli_invocation_result do_cmd_console(struct light_cli_invoca
                                 break;
                 }
         } else {
-                //   no script named: read from standard input. A TERMINAL gets a prompt and
-                // survives a failing command, because that is what a session is for; a PIPE is a
-                // script by another name and behaves like one, so `crush console < build.crush`
-                // and `crush console build.crush` do the same thing and fail the same way
+                //   no script named: read from standard input. A PIPE is a script by another
+                // name and behaves like one (synchronously, right here) -- nothing about it
+                // waits on a human, so `crush console < build.crush` and
+                // `crush console build.crush` do the same thing and fail the same way. A
+                // TERMINAL is the one case that does wait on a human, and is the one that
+                // becomes an async periodic session below
                 bool interactive = light_cli_invocation_get_switch_value(invoke, SWITCH_CONSOLE_INTERACTIVE_NAME)
                                 || _console_isatty(_console_fileno(stdin)) != 0;
-                if(interactive) {
+                if(!interactive) {
+                        failures = _run_stream(stdin, keep_going);
+                } else {
+                        if(interactive_active) {
+                                light_error("a console session is already running");
+                                console_depth--;
+                                return Result_Error;
+                        }
                         light_stream_message_f_faster(light_stream_stdout,
                                         "%s\ntype 'help' for commands, 'exit' to leave.\n", LF_INFO_STR);
-                        //   a failing command must never end an interactive session, whatever
-                        // the switch says -- the whole value of a prompt is that a mistake costs
-                        // you the line and not the session
-                        keep_going = true;
-                }
-                failures = _run_stream(stdin, interactive, keep_going);
-                if(interactive) {
-                        //   an interactive session is not a build step and does not fail: the
-                        // human saw every error as it happened and decided to carry on anyway
-                        light_info("console session ended, %u command(s) failed", failures);
-                        failures = 0;
+                        interactive_active = true;
+                        light_module_register_periodic_task(light_application_get_main_module(this_app),
+                                        "crush_console", _interactive_step);
+                        //   console_depth is decremented by _interactive_step() once the session
+                        // actually ends -- this command returns long before that does
+                        return Result_Success;
                 }
         }
         console_depth--;

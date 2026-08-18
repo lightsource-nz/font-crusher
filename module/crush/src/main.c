@@ -52,6 +52,11 @@ static uint8_t crush_app_main(struct light_application *app)
 {
         light_debug("enter main task","");
 
+        // an interactive console session needs more than one tick of its own periodic task to
+        // finish -- see crush_console_is_active()'s comment in crush_private.h
+        if(crush_console_is_active())
+                return LF_STATUS_RUN;
+
         // default application lifecycle for command executables is run once then shutdown
         return LF_STATUS_SHUTDOWN;
 }
