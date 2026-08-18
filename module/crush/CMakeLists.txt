@@ -28,6 +28,10 @@ target_include_directories(
 target_sources(
         crush PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/main.c
+        #   `crush console`, which lives with the executable rather than in libcrush on purpose:
+        # it reads from stdin and asks isatty() what it is talking to, which is the only part of
+        # this project that assumes a terminal exists at all
+        ${CMAKE_CURRENT_LIST_DIR}/src/console.c
 )
 
 target_link_libraries(
