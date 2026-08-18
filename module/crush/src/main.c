@@ -63,7 +63,12 @@ struct light_command *crush_command_root(void)
 {
         return &cmd_crush;
 }
+//   the command tree, printed from the tree itself rather than from a hardcoded line. What was
+// here described `crush export`, a command that does not exist and by the look of it never did,
+// and named none of the ten that do -- which is the failure mode of usage text maintained by
+// hand. light_cli_print_command_help() walks the registered children instead, so this cannot
+// drift from what the binary actually accepts
 static void print_usage(void)
 {
-    light_info("Usage: crush export [-s <size>] [-o <name>] <font_filename> <output_directory>\n", NULL);
+        light_cli_print_command_help(&cmd_crush);
 }
