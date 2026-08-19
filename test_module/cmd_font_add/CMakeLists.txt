@@ -20,8 +20,14 @@ add_test(
 )
 set_property(TEST cmd_font_add PROPERTY FIXTURES_REQUIRED cmd_font_add_ctx)
 set_property(TEST cmd_font_add PROPERTY ENV CRUSH_CONTEXT=)
-# the process always exits 0 regardless of command outcome (main() has no return statement,
-# and one-shot task failures are only logged, not propagated to the exit code), so success
-# has to be verified from the log output rather than the exit code
+#   the exit code IS meaningful now, and this test relies on it as well as on the output: main()
+# returns 1 when light_framework_run() reports LF_STATUS_ERROR, so CTest's own "non-zero means
+# failure" already covers the command failing outright. (The note that used to be here said the
+# opposite -- that the process always exits 0 because main() had no return statement and
+# one-shot task failures were only logged. Both halves have since stopped being true, and
+# light_cli's dispatch is not a one-shot task at all any more.)
+#   the regex is still worth having on top of that: it distinguishes "the command ran and loaded
+# the font" from "the process happened to exit 0", which is exactly what a stubbed-out handler
+# returning success would look like
 set_property(TEST cmd_font_add PROPERTY PASS_REGULAR_EXPRESSION "loaded font file '.*TypeLightSans\\.ttf' successfully")
 set_property(TEST cmd_font_add PROPERTY FAIL_REGULAR_EXPRESSION "\\[  ERROR\\]")

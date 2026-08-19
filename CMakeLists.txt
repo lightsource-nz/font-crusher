@@ -32,3 +32,4 @@ add_subdirectory(module/crush)
 
 add_subdirectory(test_module/cmd_render_new)
 add_subdirectory(test_module/cmd_font_add)
+add_subdirectory(test_module/cmd_console)

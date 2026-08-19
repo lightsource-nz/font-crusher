@@ -27,7 +27,15 @@ Light_Command_Option_Define(opt_crush_display_add_pixel_depth, &cmd_crush_displa
 Light_Command_Option_Define(opt_crush_display_add_dimensions, &cmd_crush_display_add, "dimension", 'n', "defines the physical display width and height for this display object");
 
 Light_Command_Define(cmd_crush_display_info, &cmd_crush_display, COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info, 1, 1);
-Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY_INFO_NAME, COMMAND_DISPLAY_INFO_DESCRIPTION, do_cmd_display_info, 1, 1);
+//   'list', with the LIST name, description, handler and argument count. Every one of those four
+// said INFO here, so `display list` was not a registered command at all: the name it was
+// registered under was a second "info", the parser found no child called "list", and the token
+// fell through to be bound as an argument to `display` -- which takes none, so the only sign was
+// a "excess arguments supplied to command 'crush display'" warning and a silent success.
+// COMMAND_DISPLAY_LIST_NAME and do_cmd_display_list() were both already here and unreferenced.
+//   0 arguments rather than 1, matching `font list`: listing everything is what a list command
+// does, and requiring an argument was part of the same copy
+Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY_LIST_NAME, COMMAND_DISPLAY_LIST_DESCRIPTION, do_cmd_display_list, 0, 0);
 
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_DISPLAY_CONTEXT_OBJECT_NAME

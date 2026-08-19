@@ -201,7 +201,16 @@ bool crush_console_is_active(void)
 // builtins) need to do. Returning LF_STATUS_SHUTDOWN rather than unregistering this task is
 // deliberate -- light_module_unregister_periodic_task() is documented as unsafe to call from
 // inside a running task, since the scheduler re-reads the task count on every pass and would
-// skip whatever this task's slot gets compacted into
+// skip whatever this task's slot gets compacted into.
+//
+//   THE LAST TYPED COMMAND IS STILL IN light_cli's QUEUE WHEN THIS RUNS, and it survives only
+// because cli_task() is scheduled ahead of this task and therefore already drained it earlier in
+// this same pass -- LF_STATUS_SHUTDOWN makes the scheduler abandon the rest of the pass, so
+// nothing after this point gets another turn. See cli_task()'s comment in light_cli for why the
+// ordering holds (registration order, and light_cli loads before the application module that
+// registers this one). Anything that changed that order would silently eat the last line of
+// every session; cmd_console__interactive_runs_every_queued_line counts the commands that ran
+// so it would fail rather than go unnoticed
 static uint8_t _interactive_stop(void)
 {
         light_info("console session ended","");
