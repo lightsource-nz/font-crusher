@@ -550,16 +550,16 @@ static void _write_glyph_ascii_art(FILE *out, const uint8_t *buffer, uint8_t pit
 // writes the render job's glyph data as a <ident>_font.h/<ident>_font.c pair under
 // job->output_path, suitable for embedding directly in firmware: the .c file defines one
 // packed-bitmap byte array per rendered glyph plus a table of pointers indexed by ASCII code,
-// and the .h file declares the extern rend_font_t instance that ties it all together.
+// and the .h file declares the extern light_draw_font_t instance that ties it all together.
 //
-// the exported type is rend's own rend_font_t (see <rend.h>), not a type generated per-font --
-// this is what lets a consumer draw text with any of several fonts rendered by separate jobs
-// through the same rend_draw_text() call, just by swapping which extern instance it points at.
-// file names and the extern instance name are both derived from the font's identifier and its
-// resolved pixel size (job->pixel_size, set by worker__render_job_process()) so that multiple
-// renders of the same font at different sizes -- as well as different fonts -- can share one
-// output directory and be compiled into one program without colliding, either on disk or at
-// link time
+// the exported type is light_draw's own light_draw_font_t (see <light_draw.h>), not a type
+// generated per-font -- this is what lets a consumer draw text with any of several fonts
+// rendered by separate jobs through the same light_draw_draw_text() call, just by swapping
+// which extern instance it points at. file names and the extern instance name are both derived
+// from the font's identifier and its resolved pixel size (job->pixel_size, set by
+// worker__render_job_process()) so that multiple renders of the same font at different sizes --
+// as well as different fonts -- can share one output directory and be compiled into one program
+// without colliding, either on disk or at link time
 static void worker__render_export_c_source(struct render_job *job)
 {
         uint8_t *char_list = RENDER_CHAR_SET;
@@ -594,9 +594,9 @@ static void worker__render_export_c_source(struct render_job *job)
                 "#ifndef %s_FONT_H\n"
                 "#define %s_FONT_H\n"
                 "\n"
-                "#include <rend.h>\n"
+                "#include <light_draw.h>\n"
                 "\n"
-                "extern const rend_font_t %s_font;\n"
+                "extern const light_draw_font_t %s_font;\n"
                 "\n"
                 "#endif\n",
                 ident, ident, ident);
@@ -612,14 +612,14 @@ static void worker__render_export_c_source(struct render_job *job)
                 }
                 fprintf(c, "\n};\n\n");
         }
-        fprintf(c, "static const uint8_t *const glyph_table[REND_FONT_GLYPH_TABLE_SIZE] = {\n");
+        fprintf(c, "static const uint8_t *const glyph_table[LIGHT_DRAW_FONT_GLYPH_TABLE_SIZE] = {\n");
         for(uint8_t i = 0; i < num_glyphs; i++) {
                 if(!job->result[i]) continue;
                 fprintf(c, "        [0x%02x] = glyph_0x%02x,\n", char_list[i], char_list[i]);
         }
         fprintf(c, "};\n\n");
         fprintf(c,
-                "const rend_font_t %s_font = {\n"
+                "const light_draw_font_t %s_font = {\n"
                 "        .glyphs = glyph_table,\n"
                 "        .char_width = %u,\n"
                 "        .char_height = %u,\n"

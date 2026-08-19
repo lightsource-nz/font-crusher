@@ -154,16 +154,36 @@ static struct crush_context *crush_load_context_from_filesystem(struct crush_con
 #else
         context_root = getenv(CRUSH_EV_CONTEXT);
 #endif
+        //   an EMPTY string, not just a NULL pointer, counts as "not set". getenv() returns a
+        // non-NULL pointer to "" when the variable is present but empty, which happens in
+        // practice: CTest's `ENV CRUSH_CONTEXT=` test property sets exactly this rather than
+        // truly unsetting it, and without this check that took the "authoritative" branch
+        // below on a value nobody actually provided
+        if(context_root && !*context_root) {
+                light_debug("${CRUSH_CONTEXT} environment variable is set but empty, ignoring it");
+                context_root = NULL;
+        }
         if(context_root) {
                 light_info("${CRUSH_CONTEXT} is set to '%s'", context_root);
                 context_root = realpath(context_root, NULL);
+                //   realpath() (POSIX) fails and returns NULL for a path that does not exist,
+                // unlike _fullpath() (the Windows #define of realpath() above), which resolves
+                // one regardless -- a bogus ${CRUSH_CONTEXT} used to reach crush_path_join()
+                // with a NULL path0, which calls strlen() on it
+                if(!context_root)
+                        light_fatal("${CRUSH_CONTEXT} environment variable does not point to a valid path");
                 context_path = crush_path_join(context_root, DOTCRUSH);
                 light_free(context_root);
                 context_file_path = crush_path_join(context_path, CRUSH_CONTEXT_JSON_FILE);
-                light_free(context_path);
                 succeeded = crush_context_try_load_from_path(context_file_path, context);
                 if(!succeeded)
                         light_fatal("${CRUSH_CONTEXT} environment variable does not point to a valid crush context (%s)", context_path);
+                //   freed only now: the light_fatal() above is the last read of context_path,
+                // and used to run after it was already freed -- crush_context_try_load_from_path()
+                // makes allocations of its own in between, so the freed chunk was reliably handed
+                // back out before this use-after-free was ever read, printing whatever unrelated
+                // path that later allocation happened to hold instead of the real one
+                light_free(context_path);
                 light_free(context_file_path);
                 return context;
         } else {

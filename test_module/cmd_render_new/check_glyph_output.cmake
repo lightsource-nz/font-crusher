@@ -10,8 +10,8 @@ foreach(_f "${HEADER_FILE}" "${SOURCE_FILE}")
 endforeach()
 
 file(READ "${HEADER_FILE}" HEADER_CONTENT)
-if(NOT HEADER_CONTENT MATCHES "extern const rend_font_t [A-Za-z0-9_]+_font;")
-        message(FATAL_ERROR "'${HEADER_FILE}' doesn't look like a generated font header (no rend_font_t instance declaration found)")
+if(NOT HEADER_CONTENT MATCHES "extern const light_draw_font_t [A-Za-z0-9_]+_font;")
+        message(FATAL_ERROR "'${HEADER_FILE}' doesn't look like a generated font header (no light_draw_font_t instance declaration found)")
 endif()
 
 file(READ "${SOURCE_FILE}" SOURCE_CONTENT)
