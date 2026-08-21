@@ -2,17 +2,24 @@
 #
 # CMake routines for invoking the font-crusher `crush` CLI as part of a client project's
 # build, and for turning a font file into a buildable CMake target exposing the
-# `rend_font_t` C source/header pair that `crush render new` generates.
+# `light_draw_font_t` C source/header pair that `crush render new` generates.
 #
-# Prerequisite: a `crush` executable target must already exist -- e.g. via rend's
-# rend_init_font_crusher(), or by find_package(crush MODULE) using Findcrush.cmake
+# Prerequisite: a `crush` executable target must already exist -- e.g. via light_draw's
+# light_draw_init_font_crusher(), or by find_package(crush MODULE) using Findcrush.cmake
 # alongside this file -- before any of these routines are called.
 #
 # Public routines:
 #   crush_invoke(...)          - low level: run an arbitrary crush subcommand as a build step
 #   crush_add_font_target(...) - high level: register a font+display with a crush context and
-#                                 render it into a rend_font_t C source/header pair, wrapped
-#                                 in a buildable CMake target
+#                                 render it into a light_draw_font_t C source/header pair,
+#                                 wrapped in a buildable CMake target
+#
+# crush_add_font_target() runs its commands as ONE `crush console` BATCH, not one process per
+# command: every crush invocation pays for a full framework boot, a context load off disk and a
+# render engine started and stopped again, so the three steps a font target needs (font add,
+# display add, render new) used to cost three boots where the console pays one. The batch is a
+# generated script beside the context, which also leaves a human-runnable record of exactly
+# what the build asked crush to do.
 #
 cmake_minimum_required(VERSION 3.17)
 
@@ -108,61 +115,6 @@ function(crush_context_dir)
     set(${CC_OUTPUT_VAR} ${_stamp} PARENT_SCOPE)
 endfunction()
 
-# crush_add_font(CONTEXT_DIR <dir> CONTEXT_STAMP <file> FONT <file> [FACE_INDEX <n>]
-#                OUTPUT_VAR <var>)
-#
-# Registers FONT with the crush context at CONTEXT_DIR (`crush font add`). <var> is set
-# to the context's font.json file, for later steps to DEPENDS on.
-function(crush_add_font)
-    cmake_parse_arguments(CF "" "CONTEXT_DIR;CONTEXT_STAMP;FONT;FACE_INDEX;OUTPUT_VAR" "" ${ARGN})
-    if (NOT CF_CONTEXT_DIR OR NOT CF_FONT OR NOT CF_OUTPUT_VAR)
-        message(FATAL_ERROR "crush_add_font() requires CONTEXT_DIR, FONT and OUTPUT_VAR")
-    endif()
-
-    get_filename_component(_font_abs ${CF_FONT} ABSOLUTE)
-    set(_args font add --local-file "${_font_abs}")
-    if (CF_FACE_INDEX)
-        list(APPEND _args --face-index ${CF_FACE_INDEX})
-    endif()
-
-    set(_out ${CF_CONTEXT_DIR}/.crush/font.json)
-    crush_invoke(
-        OUTPUT ${_out}
-        COMMAND ${_args}
-        WORKING_DIRECTORY ${CF_CONTEXT_DIR}
-        DEPENDS ${CF_CONTEXT_STAMP} ${_font_abs}
-        COMMENT "registering font '${_font_abs}' with crush context ${CF_CONTEXT_DIR}"
-    )
-    set(${CF_OUTPUT_VAR} ${_out} PARENT_SCOPE)
-endfunction()
-
-# crush_add_display(CONTEXT_DIR <dir> CONTEXT_STAMP <file> NAME <name>
-#                    WIDTH <px> HEIGHT <px> [DIMENSION <WxH>] OUTPUT_VAR <var>)
-#
-# Registers a display with the crush context at CONTEXT_DIR (`crush display add`). <var>
-# is set to the context's display.json file, for later steps to DEPENDS on.
-function(crush_add_display)
-    cmake_parse_arguments(CD "" "CONTEXT_DIR;CONTEXT_STAMP;NAME;WIDTH;HEIGHT;DIMENSION;OUTPUT_VAR" "" ${ARGN})
-    if (NOT CD_CONTEXT_DIR OR NOT CD_NAME OR NOT CD_WIDTH OR NOT CD_HEIGHT OR NOT CD_OUTPUT_VAR)
-        message(FATAL_ERROR "crush_add_display() requires CONTEXT_DIR, NAME, WIDTH, HEIGHT and OUTPUT_VAR")
-    endif()
-
-    set(_args display add ${CD_NAME} ${CD_WIDTH} ${CD_HEIGHT})
-    if (CD_DIMENSION)
-        list(APPEND _args --dimension ${CD_DIMENSION})
-    endif()
-
-    set(_out ${CD_CONTEXT_DIR}/.crush/display.json)
-    crush_invoke(
-        OUTPUT ${_out}
-        COMMAND ${_args}
-        WORKING_DIRECTORY ${CD_CONTEXT_DIR}
-        DEPENDS ${CD_CONTEXT_STAMP}
-        COMMENT "registering display '${CD_NAME}' with crush context ${CD_CONTEXT_DIR}"
-    )
-    set(${CD_OUTPUT_VAR} ${_out} PARENT_SCOPE)
-endfunction()
-
 # crush_add_font_target(<target>
 #       FONT <file>
 #       DISPLAY_NAME <name> DISPLAY_WIDTH <px> DISPLAY_HEIGHT <px> [DISPLAY_DIMENSION <WxH>]
@@ -198,40 +150,47 @@ function(crush_add_font_target TARGET_NAME)
 
     crush_context_dir(CONTEXT_DIR ${CT_CONTEXT_DIR} OUTPUT_VAR _context_stamp)
 
-    set(_font_add_args FONT ${_font_abs})
+    #   the three commands a font target needs, composed as a `crush console` SCRIPT and run
+    # as one batch: one framework boot, one context load, one render engine -- where three
+    # separate invocations paid all of that three times over. console stops at the first
+    # failing command, so the batch fails the build exactly where a failing single step did.
+    #   the font path is quoted for the console tokenizer, which strips "" quoting and
+    # deliberately has no backslash escapes -- which is precisely what lets a Windows path
+    # pass through it verbatim.
+    set(_batch "# generated by crush_add_font_target(${TARGET_NAME}) -- do not edit.\n")
+    string(APPEND _batch "# runnable by hand with `crush console <this file>` from the context directory.\n")
+    set(_font_add_line "font add --local-file \"${_font_abs}\"")
     if (CT_FACE_INDEX)
-        list(APPEND _font_add_args FACE_INDEX ${CT_FACE_INDEX})
+        string(APPEND _font_add_line " --face-index ${CT_FACE_INDEX}")
     endif()
-    crush_add_font(
-        CONTEXT_DIR ${CT_CONTEXT_DIR}
-        CONTEXT_STAMP ${_context_stamp}
-        ${_font_add_args}
-        OUTPUT_VAR _font_stamp
-    )
-
-    set(_display_add_args NAME ${CT_DISPLAY_NAME} WIDTH ${CT_DISPLAY_WIDTH} HEIGHT ${CT_DISPLAY_HEIGHT})
+    string(APPEND _batch "${_font_add_line}\n")
+    set(_display_add_line "display add ${CT_DISPLAY_NAME} ${CT_DISPLAY_WIDTH} ${CT_DISPLAY_HEIGHT}")
     if (CT_DISPLAY_DIMENSION)
-        list(APPEND _display_add_args DIMENSION ${CT_DISPLAY_DIMENSION})
+        string(APPEND _display_add_line " --dimension ${CT_DISPLAY_DIMENSION}")
     endif()
-    crush_add_display(
-        CONTEXT_DIR ${CT_CONTEXT_DIR}
-        CONTEXT_STAMP ${_context_stamp}
-        ${_display_add_args}
-        OUTPUT_VAR _display_stamp
-    )
+    string(APPEND _batch "${_display_add_line}\n")
+    string(APPEND _batch "render new ${CT_RENDER_NAME} ${CT_POINT_SIZE} ${CT_PIXEL_SIZE} --font ${_font_name} --display ${CT_DISPLAY_NAME}\n")
+
+    #   file(GENERATE) rather than file(WRITE): it leaves an unchanged file untouched, so a
+    # reconfigure does not bump the script's timestamp and needlessly re-run every batch
+    set(_script ${CT_CONTEXT_DIR}/${TARGET_NAME}.crush)
+    file(GENERATE OUTPUT ${_script} CONTENT "${_batch}")
 
     set(_render_dir ${CT_CONTEXT_DIR}/.crush/render/${CT_RENDER_NAME})
     set(_artifact_base "${_font_base}_${_font_ext}_${CT_PIXEL_SIZE}px_font")
     set(_out_c ${_render_dir}/${_artifact_base}.c)
     set(_out_h ${_render_dir}/${_artifact_base}.h)
 
+    #   the context's font/display records are declared alongside the rendered pair: they are
+    # products of the same batch now, and anything that used to depend on the per-step stamps
+    # keeps a real output to hang on
     crush_invoke(
         OUTPUT ${_out_c} ${_out_h}
-        COMMAND render new ${CT_RENDER_NAME} ${CT_POINT_SIZE} ${CT_PIXEL_SIZE}
-                --font ${_font_name} --display ${CT_DISPLAY_NAME}
+               ${CT_CONTEXT_DIR}/.crush/font.json ${CT_CONTEXT_DIR}/.crush/display.json
+        COMMAND console ${_script}
         WORKING_DIRECTORY ${CT_CONTEXT_DIR}
-        DEPENDS ${_font_stamp} ${_display_stamp}
-        COMMENT "rendering font '${_font_name}' (${CT_PIXEL_SIZE}px) with crush"
+        DEPENDS ${_context_stamp} ${_font_abs} ${_script}
+        COMMENT "crush: font target ${TARGET_NAME} (add '${_font_name}', add display '${CT_DISPLAY_NAME}', render ${CT_PIXEL_SIZE}px) in one batch"
     )
 
     # keep the custom-command outputs' build ordering independent of whichever real
@@ -242,7 +201,10 @@ function(crush_add_font_target TARGET_NAME)
     add_dependencies(${TARGET_NAME} ${TARGET_NAME}_crush_gen)
     target_sources(${TARGET_NAME} INTERFACE ${_out_c})
     target_include_directories(${TARGET_NAME} INTERFACE ${_render_dir})
-    if (TARGET rend)
-        target_link_libraries(${TARGET_NAME} INTERFACE rend)
+    # light_draw, formerly rend: the generated source includes light_draw.h, and the stale
+    # `if (TARGET rend)` from before the rename could never fire -- consumers only built
+    # because they all happened to link light_draw themselves
+    if (TARGET light_draw)
+        target_link_libraries(${TARGET_NAME} INTERFACE light_draw)
     endif()
 endfunction()
