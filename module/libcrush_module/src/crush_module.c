@@ -45,7 +45,9 @@ static void print_usage_module_unload(void);
 static void print_usage_module_add(void);
 static void print_usage_module_remove(void);
 
-#define CONTEXT_OBJECT_FMT "{s:f,s:s,s:f,s:O}"
+// read-side numerics are 'F' (real or integer): disk loads arrive as reals via
+// JSON_DECODE_INT_AS_REAL, in-session documents hold the integers the write format packs
+#define CONTEXT_OBJECT_FMT "{s:F,s:s,s:F,s:O}"
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:{}}"
 

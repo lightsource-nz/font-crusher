@@ -41,7 +41,9 @@ Light_Command_Define(cmd_crush_display_list, &cmd_crush_display, COMMAND_DISPLAY
 #define OBJECT_NAME CRUSH_DISPLAY_CONTEXT_OBJECT_NAME
 #define JSON_FILE CRUSH_DISPLAY_CONTEXT_JSON_FILE
 
-#define CONTEXT_OBJECT_FMT "{s:f,s:s,s:f,s:O}"
+// read-side numerics are 'F' (real or integer): disk loads arrive as reals via
+// JSON_DECODE_INT_AS_REAL, in-session documents hold the integers the write format packs
+#define CONTEXT_OBJECT_FMT "{s:F,s:s,s:F,s:O}"
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:{}}"
 
@@ -266,18 +268,20 @@ crush_json_t *crush_display_object_serialize(struct crush_display *object)
 }
 void crush_display_object_extract(crush_json_t *data, struct crush_display *object)
 {
+        //   'F' accepts real or integer -- see crush_font_object_extract() for why 'f' broke
+        // in-session lookups of objects serialized by an earlier command in the same batch
         double res_h_f, res_v_f, pixel_depth_f;
         int failed = json_unpack(data,
                 "{"
                         "s:s,"          //      "name"
                         "s:s,"          //      "description"
-                        "s:f,"          //      "res_h"
-                        "s:f,"           //      "res_v"
-                        "s:f,"          //      "ppi_h"
-                        "s:f,"           //      "ppi_v"
-                        "s:f,"          //      "width_mm"
-                        "s:f,"          //      "height_mm"
-                        "s:f"           //      "pixel_depth"
+                        "s:F,"          //      "res_h"
+                        "s:F,"           //      "res_v"
+                        "s:F,"          //      "ppi_h"
+                        "s:F,"           //      "ppi_v"
+                        "s:F,"          //      "width_mm"
+                        "s:F,"          //      "height_mm"
+                        "s:F"           //      "pixel_depth"
                 "}",
                 "name",                 &object->name,
                 "description",          &object->description,

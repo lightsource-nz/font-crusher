@@ -184,6 +184,21 @@ add_console_test(cmd_console__dispatches_display_list
         MATCH "target command: 'crush display list'"
         NOMATCH "excess arguments supplied")
 
+#   THE BATCHED BUILD STEP, end to end: the same font add / display add / render new
+# sequence crush_add_font_target() writes into its generated script, run in one session.
+# Every assertion here is a regression: "json object decode failed" is the extract format
+# strings refusing the integer-typed json a same-session serialize produces (disk
+# round-trips hid it -- store files are parsed with JSON_DECODE_INT_AS_REAL, so separate
+# processes only ever extracted reals); "excess arguments" is the parser's to_bind counter
+# left uninitialised when an option token was what moved it into its binding state; and
+# "rendering failed" guards the lookups actually resolving to usable objects, since
+# do_cmd_render_new reports a failed job as a failed command
+add_console_test(cmd_console__runs_the_font_target_pipeline
+        ARGS "console|${CONSOLE_SCRIPTS}/pipeline.crush"
+        EXPECT_CODE 0
+        ORDER "crush> font add;crush> display add pipeline_disp;crush> render new pipeline_render"
+        NOMATCH "json object decode failed;excess arguments supplied;rendering failed")
+
 #   an interactive session is a person, not a build step. Every line in that script fails, and
 # the process must still exit 0 -- a typo costing you the session would make a prompt unusable,
 # and cli_task() ignores what a queued line returns for exactly that reason

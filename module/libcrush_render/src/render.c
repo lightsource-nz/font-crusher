@@ -49,7 +49,9 @@ static void callback__render_job_done(struct render_job *job, void *arg);
 #define SCHEMA_VERSION CRUSH_CONTEXT_JSON_SCHEMA_VERSION
 #define OBJECT_NAME CRUSH_RENDER_CONTEXT_OBJECT_NAME
 
-#define CONTEXT_OBJECT_FMT "{s:f,s:s,s:f,s:O}"
+// read-side numerics are 'F' (real or integer): disk loads arrive as reals via
+// JSON_DECODE_INT_AS_REAL, in-session documents hold the integers the write format packs
+#define CONTEXT_OBJECT_FMT "{s:F,s:s,s:F,s:O}"
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:[]}"
 
@@ -303,24 +305,34 @@ crush_json_t *crush_render_object_serialize(struct crush_render *object)
 void crush_render_object_extract(crush_json_t *data, struct crush_render *object)
 {
         uint8_t *font_str, *display_str;
+        //   'F' accepts real or integer -- see crush_font_object_extract() for why 'f'/'i'
+        // broke depending on whether the document came from disk or from this session.
+        //   the numerics land in double temporaries, NOT in the struct fields directly: these
+        // fields are uint8_t (state is _Atomic uint8_t), and the old 's:i' unpack wrote a full
+        // int through each pointer, stomping the three bytes after every one of them on every
+        // refresh
+        double state_f, font_size_f, pixel_size_f;
         json_unpack(data,
                 "{"
                         "s:s,"          //      "name":                 "crush:render:$id"
-                        "s:i,"          //      "state"                 CRUSH_RENDER_STATE_DONE
+                        "s:F,"          //      "state"                 CRUSH_RENDER_STATE_DONE
                         "s:s,"          //      "font":                 "sans_helvetica"
-                        "s:i,"          //      "font_size"             "14"
-                        "s:i,"          //      "pixel_size"            "19"
+                        "s:F,"          //      "font_size"             "14"
+                        "s:F,"          //      "pixel_size"            "19"
                         "s:s,"          //      "display":              "$disp"
                         "s:s,"          //      "path":                 "$context/data/render/$id"
                 "}",
                 "name",         &object->name,
-                "state",        &object->state,
+                "state",        &state_f,
                 "font",         &font_str,
-                "font_size",    &object->font_size,
-                "pixel_size",   &object->pixel_size,
+                "font_size",    &font_size_f,
+                "pixel_size",   &pixel_size_f,
                 "display",      &display_str,
                 "path",         &object->path
         );
+        object->state = (uint8_t) state_f;
+        object->font_size = (uint8_t) font_size_f;
+        object->pixel_size = (uint8_t) pixel_size_f;
         object->data = data;
 
         // if the font-ID or display-ID has not changed, just do a refresh on the existing object.
@@ -511,6 +523,9 @@ uint8_t crush_render_complete_render_job(struct crush_render *render)
         }
         light_free(job->result);
         light_free(job);
+        // cleared so nothing on the foreground can follow the stale pointer; the poll loop in
+        // do_cmd_render_new() deliberately never touches render_job for exactly this reason
+        render->render_job = NULL;
 
         // TODO either make an option to enable notify signals, or just remove this entirely.
         // the primary crush application use case does not require notification, as the foreground
@@ -528,6 +543,9 @@ uint8_t crush_render_fail_render_job(struct crush_render *render)
 {
         light_debug("processing completed failed job '%s'", crush_render_get_name(render));
         light_free(render->render_job);
+        // as in crush_render_complete_render_job(): the foreground must never see this pointer
+        // again once the worker has freed it
+        render->render_job = NULL;
         // as in crush_render_complete_render_job(): stored before the save that persists it.
         // render->complete, set by the caller, is what releases the polling thread
         atomic_store(&render->state, CRUSH_RENDER_STATE_ERROR);
@@ -599,11 +617,24 @@ static struct light_cli_invocation_result do_cmd_render_new(struct light_cli_inv
         // state cannot be the signal: it reloads the object from the json, overwriting whatever
         // the worker put in memory with whatever was last persisted
         while(!atomic_load(&new_render->complete)) {
-                light_debug("polling render job '%s', progress: '%d%%'...", new_render->name, (new_render->render_job->progress / new_render->render_job->prog_max));
+                //   new_render->render_job is NOT read here: the worker owns the job object and
+                // frees it in both crush_render_complete_render_job() and
+                // crush_render_fail_render_job(), which run BEFORE complete is set. Reading
+                // job->progress from this loop raced that free -- on a failed render (bad font
+                // path) it was a reliable access violation
+                light_debug("polling render job '%s'...", new_render->name);
                 light_platform_sleep_ms(POLLING_INTERVAL_MS);
                 crush_render_refresh(new_render);
         }
-        
+        //   the worker reports failure through the object state it persisted (see
+        // crush_render_fail_render_job()); a render that failed must fail this command.
+        // Returning success regardless let `crush console` -- and so every
+        // crush_add_font_target() build step, which stops at the first failed command --
+        // carry on as though the glyph sources this job never wrote were going to be there
+        if(atomic_load(&new_render->state) == CRUSH_RENDER_STATE_ERROR) {
+                light_error("render job '%s' failed", new_render->name);
+                return Result_Error;
+        }
         return Result_Success;
 }
 // NOTE that this callback is executed on the background worker stack

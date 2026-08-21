@@ -54,7 +54,9 @@ Light_Command_Switch_Define(cmd_crush_font_add__opt_face_index, &cmd_crush_font_
 #define OBJECT_NAME CRUSH_FONT_CONTEXT_OBJECT_NAME
 #define JSON_FILE CRUSH_FONT_CONTEXT_JSON_FILE
 
-#define CONTEXT_OBJECT_FMT "{s:f,s:s,s:f,s:O}"
+// read-side numerics are 'F' (real or integer): disk loads arrive as reals via
+// JSON_DECODE_INT_AS_REAL, in-session documents hold the integers the write format packs
+#define CONTEXT_OBJECT_FMT "{s:F,s:s,s:F,s:O}"
 #define CONTEXT_OBJECT_FMT_WRITE "{s:i,s:s,s:i,s:O}"
 #define CONTEXT_OBJECT_NEW_FMT "{s:i,s:s,s:i,s:{}}"
 
@@ -159,7 +161,11 @@ struct crush_font *crush_font_context_get(struct crush_font_context *context, co
         ID_To_String(id_str, id);
         crush_json_t *obj_data = json_object_getn(context->data, id_str, CRUSH_JSON_KEY_LENGTH);
         struct crush_font *result = crush_font_object_deserialize(obj_data);
-        json_decref(obj_data);
+        //   no json_decref here: json_object_getn() borrows, exactly as json_object_foreach()
+        // does in crush_font_context_get_by_name() below -- releasing it dropped the stored
+        // object's refcount and left the store holding freed memory. the unlock was also
+        // missing, so any by-id lookup left the context lock held for good
+        light_mutex_do_unlock(&context->lock);
         return result;
 }
 struct crush_font *crush_font_context_get_by_id_string(struct crush_font_context *context, uint8_t *id_string)
@@ -297,16 +303,22 @@ void crush_font_object_extract(crush_json_t *data, struct crush_font *object)
 {
         uint8_t *state_str;
         crush_json_t *files_data;
+        //   numeric fields are unpacked with 'F' (real OR integer), never 'f' or 'i': objects
+        // loaded from disk hold reals (the store file is parsed with JSON_DECODE_INT_AS_REAL),
+        // while objects serialized THIS session hold true integers ('i' in
+        // crush_font_object_serialize()). 'f' rejected the in-session shape, which is why
+        // `render new` could find a font added by a separate process but not one added two
+        // commands earlier in the same `crush console` batch
         double target_file_f, face_index_f;
-        int failed = json_unpack(data, 
+        int failed = json_unpack(data,
                 "{"
                         "s:s,"          //      "name":                 "font_creator.sans_helvetica"
                         "s:s,"          //      "state":                "STATE_NEW"
                         "s:b,"          //      "source_is_local"       false
                         "s:s,"          //      "source":               "git:https//github.com/font_creator/sans_helvetica"
                         "s:s,"          //      "path"                  "data/font/font_creator.sans_helvetica"
-                        "s:f,"          //      "target_file"           0
-                        "s:f,"          //      "face_index"            0
+                        "s:F,"          //      "target_file"           0
+                        "s:F,"          //      "face_index"            0
                         "s:O"           //      "files":                ["font_creator.sans_helvetica.ttf"]
                 "}",
                 "name",         &object->name,
